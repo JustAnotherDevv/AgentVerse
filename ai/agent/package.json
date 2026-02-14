@@ -1,7 +1,7 @@
 {
   "name": "tempo-agent",
   "version": "2.0.0",
-  "description": "OpenClaw-style autonomous AI agent for EVM Tempo testnet with SQLite memory",
+  "description": "Multi-agent system for Tempo EVM testnet with autonomous behaviors",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -20,6 +20,7 @@
     "cors": "^2.8.6",
     "dotenv": "^16.4.0",
     "express": "^4.21.0",
+    "socket.io": "^4.7.0",
     "uuid": "^10.0.0",
     "viem": "^2.21.0"
   },

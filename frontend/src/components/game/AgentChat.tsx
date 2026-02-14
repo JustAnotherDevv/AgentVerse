@@ -8,11 +8,15 @@ interface Message {
 interface AgentChatProps {
   open: boolean;
   onClose: () => void;
-  agentUrl?: string;
-  sessionId?: string;
+  agent?: {
+    id: string;
+    name: string;
+    avatar: { emoji: string };
+  };
+  onSend?: (message: string) => Promise<any>;
 }
 
-export function AgentChat({ open, onClose, agentUrl = "http://localhost:3000", sessionId }: AgentChatProps) {
+export function AgentChat({ open, onClose, agent, onSend }: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,16 +27,16 @@ export function AgentChat({ open, onClose, agentUrl = "http://localhost:3000", s
   }, [messages]);
 
   useEffect(() => {
-    if (open && messages.length === 0) {
+    if (open && agent && messages.length === 0) {
       setMessages([{
         role: "assistant",
-        content: "Hi! I'm TempoBot. Click on me in the map to chat with me here. I can help you with TEMPO transactions, check balances, and interact with the Tempo blockchain!"
+        content: `Hi! I'm ${agent.name}. ${agent.avatar.emoji} How can I help you today?`
       }]);
     }
-  }, [open]);
+  }, [open, agent]);
 
   const sendMessage = async () => {
-    if (!input.trim() || loading) return;
+    if (!input.trim() || loading || !onSend) return;
     
     const userMessage = input.trim();
     setInput("");
@@ -41,16 +45,7 @@ export function AgentChat({ open, onClose, agentUrl = "http://localhost:3000", s
     setMessages(prev => [...prev, { role: "user", content: userMessage }]);
 
     try {
-      const response = await fetch(`${agentUrl}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          message: userMessage,
-          sessionId: sessionId
-        })
-      });
-      
-      const data = await response.json();
+      const data = await onSend(userMessage);
       
       setMessages(prev => [...prev, { 
         role: "assistant", 
@@ -59,7 +54,7 @@ export function AgentChat({ open, onClose, agentUrl = "http://localhost:3000", s
     } catch (error) {
       setMessages(prev => [...prev, { 
         role: "assistant", 
-        content: "Failed to connect to agent. Make sure the agent is running on " + agentUrl
+        content: "Failed to send message. Please try again."
       }]);
     } finally {
       setLoading(false);
@@ -110,10 +105,10 @@ export function AgentChat({ open, onClose, agentUrl = "http://localhost:3000", s
             justifyContent: "center",
             fontSize: "20px",
           }}>
-            🦞
+            {agent?.avatar?.emoji || "🤖"}
           </div>
           <div>
-            <div style={{ color: "white", fontWeight: "bold", fontSize: "16px" }}>TempoBot</div>
+            <div style={{ color: "white", fontWeight: "bold", fontSize: "16px" }}>{agent?.name || "Agent"}</div>
             <div style={{ color: "#c4b5fd", fontSize: "12px" }}>AI Assistant</div>
           </div>
         </div>
@@ -218,7 +213,6 @@ export function AgentChat({ open, onClose, agentUrl = "http://localhost:3000", s
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            transition: "background 0.2s",
           }}
         >
           ➤

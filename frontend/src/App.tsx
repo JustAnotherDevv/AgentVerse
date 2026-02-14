@@ -1,7 +1,10 @@
 import { Canvas, useThree } from "@react-three/fiber";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
-import { Cube, GridGround, useCubeManager, AgentBean, AgentChat } from "./components/game";
+import { Cube, GridGround, useCubeManager, AgentBean } from "./components/game";
+import { AgentChat } from "./components/game/AgentChat";
+import { WorldChat } from "./components/game/WorldChat";
+import { useAgentSystem, type Agent } from "./hooks/useAgentSystem";
 
 function getOrCreateSessionId(): string {
   if (typeof window === 'undefined') return 'server';
@@ -124,8 +127,18 @@ function RTSController() {
   return null;
 }
 
-function Game({ onAgentClick }: { onAgentClick: () => void }) {
+function Game({ 
+  onAgentClick, 
+  agents, 
+  speakingAgents 
+}: { 
+  onAgentClick: (agent: Agent) => void;
+  agents: Agent[];
+  speakingAgents: Map<string, string>;
+}) {
   const { cubes, addCube, handlePositionChange, getOtherCubePositions, chattingCubes } = useCubeManager();
+
+  console.log("🎮 Game rendering agents:", agents.map(a => `${a.name}: (${a.position.x}, ${a.position.y})`));
 
   const handlePlaneClick = (point: THREE.Vector3) => {
     addCube(new THREE.Vector3(point.x, 0.5, point.z));
@@ -136,11 +149,19 @@ function Game({ onAgentClick }: { onAgentClick: () => void }) {
       <RTSController />
       <GridGround onPlaneClick={handlePlaneClick} />
 
-      {/* Agent Bean */}
-      <AgentBean 
-        position={[0, 1, 0]} 
-        onClick={onAgentClick}
-      />
+      {/* Agent Beans */}
+      {agents.map(agent => (
+        <AgentBean
+          key={agent.id}
+          id={agent.id}
+          name={agent.name}
+          position={agent.position}
+          avatar={agent.avatar}
+          personality={agent.personality}
+          onClick={() => onAgentClick(agent)}
+          chatMessage={speakingAgents.get(agent.id)}
+        />
+      ))}
 
       {cubes.map(cube => (
         <Cube
@@ -159,20 +180,103 @@ function Game({ onAgentClick }: { onAgentClick: () => void }) {
 
 export default function App() {
   useInput();
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [sessionId] = useState(() => getOrCreateSessionId());
+  
+  const { 
+    agents, 
+    connected, 
+    speakingAgents, 
+    worldMessages,
+    sendMessage, 
+  } = useAgentSystem();
+
+  const handleAgentClick = useCallback((agent: Agent) => {
+    setSelectedAgent(agent);
+    setChatOpen(true);
+  }, []);
+
+  const handleSendMessage = useCallback(async (message: string) => {
+    if (!selectedAgent) return;
+    return await sendMessage(selectedAgent.id, message, sessionId);
+  }, [selectedAgent, sendMessage, sessionId]);
 
   return (
     <div className="w-screen h-screen bg-black">
+      {/* Connection status */}
+      <div style={{
+        position: 'fixed',
+        top: 10,
+        left: 10,
+        zIndex: 100,
+        display: 'flex',
+        gap: '8px',
+        alignItems: 'center'
+      }}>
+        <div style={{
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: connected ? '#22c55e' : '#ef4444',
+        }} />
+        <span style={{ color: '#9ca3af', fontSize: 12 }}>
+          {connected ? `Connected (${agents.length} agents)` : 'Connecting...'}
+        </span>
+      </div>
+
+      {/* Agent selector in top right */}
+      {agents.length > 0 && (
+        <div style={{
+          position: 'fixed',
+          top: 10,
+          right: 10,
+          zIndex: 100,
+          display: 'flex',
+          gap: '8px',
+        }}>
+          {agents.slice(0, 3).map(agent => (
+            <div
+              key={agent.id}
+              onClick={() => handleAgentClick(agent)}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                background: agent.avatar.color,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 20,
+                cursor: 'pointer',
+                border: selectedAgent?.id === agent.id ? '2px solid white' : '2px solid transparent',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              }}
+              title={agent.name}
+            >
+              {agent.avatar.emoji}
+            </div>
+          ))}
+        </div>
+      )}
+
       <Canvas>
         <ambientLight intensity={0.5} />
         <directionalLight position={[50, 100, 50]} intensity={1} />
-        <Game onAgentClick={() => setChatOpen(true)} />
+        <Game 
+          onAgentClick={handleAgentClick}
+          agents={agents}
+          speakingAgents={speakingAgents}
+        />
       </Canvas>
-      <AgentChat 
-        open={chatOpen} 
+      
+      <WorldChat messages={worldMessages} />
+      
+      <AgentChat
+        open={chatOpen}
         onClose={() => setChatOpen(false)}
-        sessionId={sessionId}
+        agent={selectedAgent || undefined}
+        onSend={handleSendMessage}
       />
     </div>
   );
