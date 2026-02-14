@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 
 const keys: Record<string, boolean> = {};
@@ -104,10 +104,88 @@ function RTSController() {
   return null;
 }
 
-function GridGround() {
+function RedCube({ startPosition }: { startPosition: [number, number, number] }) {
+  const positionRef = useRef(new THREE.Vector3(...startPosition));
+  const targetRef = useRef(new THREE.Vector3(0, 0.5, 50));
+  const rotationRef = useRef(0);
+  const speedRef = useRef(2);
+  const initializedRef = useRef(false);
+
+  const [renderPosition, setRenderPosition] = useState<[number, number, number]>(startPosition);
+  const [renderRotation, setRenderRotation] = useState(0);
+
+  useEffect(() => {
+    targetRef.current.set(
+      (Math.random() - 0.5) * 100,
+      0.5,
+      (Math.random() - 0.5) * 100
+    );
+    rotationRef.current = Math.random() * Math.PI * 2;
+    speedRef.current = 2 + Math.random() * 2;
+    initializedRef.current = true;
+  }, []);
+
+  useFrame((_, delta) => {
+    if (!initializedRef.current) return;
+
+    const pos = positionRef.current;
+    const target = targetRef.current;
+
+    const dx = target.x - pos.x;
+    const dz = target.z - pos.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+
+    if (dist < 1) {
+      targetRef.current.set(
+        (Math.random() - 0.5) * 100,
+        0.5,
+        (Math.random() - 0.5) * 100
+      );
+    } else {
+      const moveX = (dx / dist) * speedRef.current * delta;
+      const moveZ = (dz / dist) * speedRef.current * delta;
+      pos.x += moveX;
+      pos.z += moveZ;
+
+      rotationRef.current = Math.atan2(dx, dz);
+    }
+
+    setRenderPosition([pos.x, pos.y, pos.z]);
+    setRenderRotation(rotationRef.current);
+  });
+
+  return (
+    <group position={renderPosition} rotation={[0, renderRotation, 0]}>
+      <mesh castShadow>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color="#ef4444" roughness={0.4} metalness={0.3} />
+      </mesh>
+      <mesh position={[-0.2, 0.2, 0.5]}>
+        <sphereGeometry args={[0.1, 8, 8]} />
+        <meshStandardMaterial color="#1f2937" />
+      </mesh>
+      <mesh position={[0.2, 0.2, 0.5]}>
+        <sphereGeometry args={[0.1, 8, 8]} />
+        <meshStandardMaterial color="#1f2937" />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.49, 0]}>
+        <circleGeometry args={[0.6, 16]} />
+        <meshStandardMaterial color="#000000" transparent opacity={0.3} />
+      </mesh>
+    </group>
+  );
+}
+
+function GridGround({ onPlaneClick }: { onPlaneClick?: (point: THREE.Vector3) => void }) {
   return (
     <>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh 
+        rotation={[-Math.PI / 2, 0, 0]} 
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          onPlaneClick?.(e.point);
+        }}
+      >
         <planeGeometry args={[500, 500]} />
         <meshStandardMaterial color="#0f172a" />
       </mesh>
@@ -122,6 +200,16 @@ function GridGround() {
 
 export default function App() {
   useInput();
+  const [cubes, setCubes] = useState<{ id: number; position: [number, number, number] }[]>([]);
+  const cubeIdRef = useRef(0);
+
+  const handlePlaneClick = useCallback((point: THREE.Vector3) => {
+    const newCube = {
+      id: cubeIdRef.current++,
+      position: [point.x, 0.5, point.z] as [number, number, number]
+    };
+    setCubes(prev => [...prev, newCube]);
+  }, []);
 
   return (
     <div className="w-screen h-screen bg-black">
@@ -130,13 +218,11 @@ export default function App() {
         <directionalLight position={[50, 100, 50]} intensity={1} />
 
         <RTSController />
-        <GridGround />
+        <GridGround onPlaneClick={handlePlaneClick} />
 
-        {/* Example unit */}
-        <mesh position={[0, 1, 0]}>
-          <boxGeometry />
-          <meshStandardMaterial color="#3b82f6" />
-        </mesh>
+        {cubes.map(cube => (
+          <RedCube key={cube.id} startPosition={cube.position} />
+        ))}
       </Canvas>
     </div>
   );
