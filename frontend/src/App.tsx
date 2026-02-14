@@ -1,7 +1,7 @@
 import { Canvas, useThree } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { Cube, GridGround, useCubeManager } from "./components/game";
+import { Cube, GridGround, useCubeManager, AgentBean, AgentChat } from "./components/game";
 
 const keys: Record<string, boolean> = {};
 const mouse = { x: 0, y: 0, wheel: 0 };
@@ -115,7 +115,7 @@ function RTSController() {
   return null;
 }
 
-function Game() {
+function Game({ onAgentClick }: { onAgentClick: () => void }) {
   const { cubes, addCube, handlePositionChange, getOtherCubePositions, chattingCubes } = useCubeManager();
 
   const handlePlaneClick = (point: THREE.Vector3) => {
@@ -126,6 +126,12 @@ function Game() {
     <>
       <RTSController />
       <GridGround onPlaneClick={handlePlaneClick} />
+
+      {/* Agent Bean */}
+      <AgentBean 
+        position={[0, 1, 0]} 
+        onClick={onAgentClick}
+      />
 
       {cubes.map(cube => (
         <Cube
@@ -144,14 +150,19 @@ function Game() {
 
 export default function App() {
   useInput();
+  const [chatOpen, setChatOpen] = useState(false);
 
   return (
     <div className="w-screen h-screen bg-black">
       <Canvas>
         <ambientLight intensity={0.5} />
         <directionalLight position={[50, 100, 50]} intensity={1} />
-        <Game />
+        <Game onAgentClick={() => setChatOpen(true)} />
       </Canvas>
+      <AgentChat 
+        open={chatOpen} 
+        onClose={() => setChatOpen(false)} 
+      />
     </div>
   );
 }

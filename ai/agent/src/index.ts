@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import cors from 'cors';
 import axios from 'axios';
 import { createWalletClient, createPublicClient, http, parseEther, formatEther, getAddress, encodeFunctionData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -503,6 +504,7 @@ ${isAgent ?
   }
 
   private setupRoutes() {
+    this.app.use(cors());
     this.app.use(express.json());
 
     this.app.post('/chat', async (req: Request, res: Response) => {
