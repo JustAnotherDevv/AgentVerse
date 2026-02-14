@@ -3,6 +3,15 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Cube, GridGround, useCubeManager, AgentBean, AgentChat } from "./components/game";
 
+function getOrCreateSessionId(): string {
+  if (typeof window === 'undefined') return 'server';
+  const stored = localStorage.getItem("tempo-chat-session");
+  if (stored) return stored;
+  const newId = "sess-" + Date.now().toString(36) + "-" + Math.random().toString(36).substring(2, 10);
+  localStorage.setItem("tempo-chat-session", newId);
+  return newId;
+}
+
 const keys: Record<string, boolean> = {};
 const mouse = { x: 0, y: 0, wheel: 0 };
 
@@ -151,6 +160,7 @@ function Game({ onAgentClick }: { onAgentClick: () => void }) {
 export default function App() {
   useInput();
   const [chatOpen, setChatOpen] = useState(false);
+  const [sessionId] = useState(() => getOrCreateSessionId());
 
   return (
     <div className="w-screen h-screen bg-black">
@@ -161,7 +171,8 @@ export default function App() {
       </Canvas>
       <AgentChat 
         open={chatOpen} 
-        onClose={() => setChatOpen(false)} 
+        onClose={() => setChatOpen(false)}
+        sessionId={sessionId}
       />
     </div>
   );

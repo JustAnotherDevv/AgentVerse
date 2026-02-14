@@ -395,8 +395,9 @@ class Agent {
     }
   }
 
-  private detectIdentity(req: Request): { type: 'human' | 'agent' | 'unknown' | 'service'; name: string; address?: string } {
+  private detectIdentity(req: Request): { type: 'human' | 'agent' | 'unknown' | 'service'; name: string; address?: string; sessionId?: string } {
     const address = req.body.address || req.headers['x-wallet-address'] as string;
+    const sessionId = req.body.sessionId || req.headers['x-session-id'] as string;
     const userAgent = req.headers['user-agent'] as string;
     const apiKey = req.headers['x-api-key'] as string;
 
@@ -422,10 +423,15 @@ class Agent {
       return { type: newIdentity.type, name: newIdentity.name, address };
     }
 
+    if (sessionId) {
+      return { type: 'human', name: sessionId.slice(0, 8), sessionId };
+    }
+
     return { type: 'unknown', name: 'Anonymous' };
   }
 
   private getOrCreateConversation(identity: ReturnType<typeof this.detectIdentity>): Conversation {
+    // First try by address
     if (identity.address) {
       const existing = this.db.getConversationByParticipant(identity.address);
       if (existing) return existing;
@@ -447,12 +453,19 @@ class Agent {
       }
     }
 
+    // Try by sessionId
+    if (identity.sessionId) {
+      const conversations = this.db.getConversations();
+      const existingBySession = conversations.find(c => c.metadata?.sessionId === identity.sessionId);
+      if (existingBySession) return existingBySession;
+    }
+
     const conversation: Conversation = {
       id: uuidv4(),
-      participantId: identity.address,
+      participantId: identity.address || identity.sessionId,
       participantType: identity.type === 'unknown' ? 'unknown' : identity.type as any,
       participantName: identity.name,
-      metadata: {},
+      metadata: identity.sessionId ? { sessionId: identity.sessionId } : {},
       createdAt: Date.now(),
       lastMessageAt: Date.now(),
     };
@@ -461,7 +474,9 @@ class Agent {
   }
 
   private buildSystemPrompt(conversation: Conversation, identity: ReturnType<typeof this.detectIdentity>): string {
-    const facts = this.db.getFacts();
+    const allFacts = this.db.getFacts();
+    const identityId = identity.address || identity.sessionId;
+    const facts = allFacts.filter(f => f.identityId === identityId);
     const recentActions = this.db.getRecentActions(5);
     const isAgent = identity.type === 'agent';
 
@@ -474,7 +489,7 @@ class Agent {
 
 ## Your Identity
 - Name: ${this.env.AGENT_NAME}
-- Chain: Tempo Testnet (EVM 8081)
+- Chain: Tempo Testnet (EVM 42431)
 - Account: ${this.account?.address || 'read-only'}
 
 ## Safety Limits
@@ -516,9 +531,7 @@ ${isAgent ?
         }
 
         const identity = this.detectIdentity(req);
-        const conversation = sessionId 
-          ? (this.db.getConversation(sessionId) || this.getOrCreateConversation(identity))
-          : this.getOrCreateConversation(identity);
+        const conversation = this.getOrCreateConversation(identity);
 
         const response = await this.handleMessage(message, conversation, identity);
         
@@ -562,9 +575,7 @@ ${isAgent ?
         }
 
         const identity = this.detectIdentity(req);
-        const conversation = sessionId 
-          ? (this.db.getConversation(sessionId) || this.getOrCreateConversation(identity))
-          : this.getOrCreateConversation(identity);
+        const conversation = this.getOrCreateConversation(identity);
 
         const response = await this.handleMessage(message, conversation, identity);
         
@@ -898,7 +909,67 @@ ${isAgent ?
       return result.message;
     }
 
-    return await this.callLLM(message, conversation, identity);
+    // Check user message for facts to save
+    await this.extractAndSaveFactsFromMessage(message, identity);
+    
+    const response = await this.callLLM(message, conversation, identity);
+    
+    return response;
+  }
+
+  private async extractAndSaveFactsFromMessage(message: string, identity: ReturnType<typeof this.detectIdentity>): Promise<void> {
+    const factPatterns = [
+      /(?:my name is|I'm|i'm|i am) ["']?([^."'\n,]+)/gi,
+      /(?:i like|i love|i hate|i prefer) ["']?([^."'\n,]+)/gi,
+      /(?:i live in|i'm from|i come from) ["']?([^."'\n,]+)/gi,
+      /(?:i work as|i'm a|i am a) ["']?([^."'\n,]+)/gi,
+      /(?:call me) ["']?([^."'\n,]+)/gi,
+      // Fix: category is before "is", capture only the value after "is"
+      /(?:my favorite|favourite) (?:color|food|fruit|animal|movie|song|game|sport|hobby|book|show|car|place|thing) is ["']?([^."'\n,]+)/gi,
+    ];
+
+    const lowerMessage = message.toLowerCase();
+    let savedCount = 0;
+    
+    // Match "my favorite X is Y" and extract just Y
+    const simpleFavMatch = message.match(/(?:my favorite|favourite) [a-z]+ is ["']?([^."'\n,!]+)/gi);
+    if (simpleFavMatch) {
+      for (const m of simpleFavMatch) {
+        let content = m.replace(/^(?:my favorite|favourite) [a-z]+ is /i, '').trim();
+        if (content && content.length > 2) {
+          const fact: Fact = {
+            id: uuidv4(),
+            content: content,
+            identityId: identity.address || identity.sessionId,
+            confidence: 0.9,
+            createdAt: Date.now(),
+          };
+          this.db.addFact(fact);
+          savedCount++;
+        }
+      }
+    }
+    
+    for (const pattern of factPatterns) {
+      const matches = [...message.matchAll(pattern)];
+      for (const match of matches) {
+        const content = match[1]?.trim();
+        if (content && content.length > 2 && content.length < 50) {
+          const skipWords = ['yeah', 'yes', 'no', 'okay', 'ok', 'sure', 'thanks', 'thank', 'hello', 'hi', 'hey'];
+          if (!skipWords.includes(content.toLowerCase())) {
+            const fact: Fact = {
+              id: uuidv4(),
+              content: content,
+              identityId: identity.address || identity.sessionId,
+              confidence: 0.9,
+              createdAt: Date.now(),
+            };
+            this.db.addFact(fact);
+            savedCount++;
+          }
+        }
+      }
+    }
   }
 
   async getBalance(address?: string): Promise<string> {

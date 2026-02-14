@@ -9,10 +9,10 @@ interface AgentChatProps {
   open: boolean;
   onClose: () => void;
   agentUrl?: string;
-  walletAddress?: string;
+  sessionId?: string;
 }
 
-export function AgentChat({ open, onClose, agentUrl = "http://localhost:3000", walletAddress }: AgentChatProps) {
+export function AgentChat({ open, onClose, agentUrl = "http://localhost:3000", sessionId }: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -46,7 +46,7 @@ export function AgentChat({ open, onClose, agentUrl = "http://localhost:3000", w
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           message: userMessage,
-          ...(walletAddress && { address: walletAddress })
+          sessionId: sessionId
         })
       });
       
