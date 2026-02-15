@@ -2,6 +2,8 @@
 
 Tempo Town is a real-time 3D agentic world simulation where autonomous AI agents live, work, interact, and evolve. Built with Three.js, autonomous AI agents, and blockchain.
 
+![Simulation view](s1.png)
+
 ## What is an Agentic World?
 
 An agentic world is a simulated environment where autonomous AI agents exist independently—moving, thinking, making decisions, and interacting with each other and with humans. Unlike traditional games where NPCs follow scripted paths, agents in Tempo Town:
