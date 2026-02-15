@@ -231,11 +231,11 @@ export default function App() {
   }, [createTask, fetchTasks]);
 
   return (
-    <div className="w-screen h-screen bg-black">
-      {!gameStarted ? (
-        <MainMenu onStart={() => setGameStarted(true)} />
-      ) : (
-        <>
+    <>
+    {!gameStarted ? (
+      <MainMenu onStart={() => setGameStarted(true)} />
+    ) : (
+      <div className="w-screen h-screen bg-black">
       {/* Connection status */}
       <div style={{
         position: 'fixed',
@@ -398,20 +398,21 @@ export default function App() {
 
       <WorldChat messages={worldMessages} />
       
-      <AgentChat
-        open={chatOpen}
-        onClose={() => setChatOpen(false)}
-        agent={selectedAgent || undefined}
-        onSend={handleSendMessage}
-      />
-
       <AgentPanel
         agent={selectedAgent}
         open={panelOpen}
         onClose={() => setPanelOpen(false)}
         onTip={tipAgent}
       />
-      </>
-    </div>
+
+      <AgentChat
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        agent={selectedAgent || undefined}
+        onSend={handleSendMessage}
+      />
+      </div>
+    )}
+    </>
   );
 }

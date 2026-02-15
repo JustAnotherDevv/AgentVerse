@@ -18,43 +18,50 @@ interface AgentChatProps {
 }
 
 export function AgentChat({ open, onClose, agent, onSend }: AgentChatProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesByAgent, setMessagesByAgent] = useState<Record<string, Message[]>>({});
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const messages = agent ? messagesByAgent[agent.id] || [] : [];
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   useEffect(() => {
-    if (open && agent && messages.length === 0) {
-      setMessages([{
-        role: "assistant",
-        content: `INITIALIZING ${agent.name.toUpperCase()}_MODULE... SYSTEM READY. How may I assist you?`
-      }]);
+    if (open && agent && !messagesByAgent[agent.id]) {
+      setMessagesByAgent(prev => ({
+        ...prev,
+        [agent.id]: [{
+          role: "assistant",
+          content: `INITIALIZING ${agent.name.toUpperCase()}_MODULE... SYSTEM READY. How may I assist you?`
+        }]
+      }));
     }
-  }, [open, agent]);
-
-  useEffect(() => {
-    if (!open) {
-      setMessages([]);
-      setInput("");
-    }
-  }, [open]);
+  }, [open, agent, messagesByAgent]);
 
   const sendMessage = async () => {
-    if (!input.trim() || loading || !onSend) return;
+    if (!input.trim() || loading || !onSend || !agent) return;
     const userMessage = input.trim();
     setInput("");
     setLoading(true);
-    setMessages(prev => [...prev, { role: "user", content: userMessage }]);
+    setMessagesByAgent(prev => ({
+      ...prev,
+      [agent.id]: [...(prev[agent.id] || []), { role: "user", content: userMessage }]
+    }));
 
     try {
       const data = await onSend(userMessage);
-      setMessages(prev => [...prev, { role: "assistant", content: data.response || "> ERROR: NO RESPONSE" }]);
+      setMessagesByAgent(prev => ({
+        ...prev,
+        [agent.id]: [...(prev[agent.id] || []), { role: "assistant", content: data.response || "> ERROR: NO RESPONSE" }]
+      }));
     } catch (error) {
-      setMessages(prev => [...prev, { role: "assistant", content: "> ERROR: TRANSMISSION FAILED" }]);
+      setMessagesByAgent(prev => ({
+        ...prev,
+        [agent.id]: [...(prev[agent.id] || []), { role: "assistant", content: "> ERROR: TRANSMISSION FAILED" }]
+      }));
     } finally {
       setLoading(false);
     }

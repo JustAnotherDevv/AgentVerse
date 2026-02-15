@@ -36,9 +36,8 @@ export function AgentPanel({ agent, open = true, onClose, onTip }: AgentPanelPro
   return (
     <div style={{
       position: "fixed",
-      top: "50%",
-      right: theme.spacing.md,
-      transform: "translateY(-50%)",
+      top: "20px",
+      left: theme.spacing.md,
       width: "300px",
       background: theme.colors.background.secondary,
       border: `2px solid ${theme.colors.border.default}`,

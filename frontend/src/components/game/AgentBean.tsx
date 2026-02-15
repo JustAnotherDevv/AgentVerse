@@ -30,7 +30,7 @@ export function AgentBean({ name, position, avatar, onClick, isSelected }: Agent
         <meshStandardMaterial color={avatar.color} roughness={0.3} metalness={0.4} />
       </mesh>
       
-      <Html position={[0, 1.5, 0]} center>
+      <Html position={[0, 1.5, 0]} center style={{ zIndex: 1 }}>
         <div style={{
           background: isSelected ? 'rgba(251, 191, 36, 0.9)' : 'rgba(212, 168, 87, 0.9)',
           color: "white",
@@ -48,7 +48,7 @@ export function AgentBean({ name, position, avatar, onClick, isSelected }: Agent
       </Html>
 
       {hovered && !isSelected && (
-        <Html position={[0, 2.5, 0]} center>
+        <Html position={[0, 2.5, 0]} center style={{ zIndex: 1 }}>
           <div style={{
             background: "rgba(0,0,0,0.7)",
             color: "white",

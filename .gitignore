@@ -1,0 +1,8 @@
+node_modules
+build
+dist
+.idea
+agent.sh
+.env
+.claude
+tmp
