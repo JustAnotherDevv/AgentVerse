@@ -6,6 +6,7 @@ import { AgentChat } from "./components/game/AgentChat";
 import { WorldChat } from "./components/game/WorldChat";
 import { AgentPanel } from "./components/game/AgentPanel";
 import { TaskMarketplace } from "./components/game/TaskMarketplace";
+import { GovernancePanel } from "./components/game/GovernancePanel";
 import { useAgentSystem, type Agent } from "./hooks/useAgentSystem";
 
 function getOrCreateSessionId(): string {
@@ -188,6 +189,7 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [taskMarketplaceOpen, setTaskMarketplaceOpen] = useState(false);
+  const [governanceOpen, setGovernanceOpen] = useState(false);
   const [tasks, setTasks] = useState<any[]>([]);
   const [sessionId] = useState(() => getOrCreateSessionId());
   
@@ -272,6 +274,31 @@ export default function App() {
         📋 Tasks ({tasks.filter(t => t.status === 'open').length})
       </button>
 
+      {/* Governance Button */}
+      <button
+        onClick={() => setGovernanceOpen(true)}
+        style={{
+          position: 'fixed',
+          top: 10,
+          left: '50%',
+          transform: 'translateX(calc(-50% + 70px))',
+          zIndex: 100,
+          padding: '8px 16px',
+          background: 'rgba(34, 197, 94, 0.9)',
+          border: 'none',
+          borderRadius: '8px',
+          color: 'white',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+      >
+        🗳️ Governance
+      </button>
+
       {/* Agent selector in top right */}
       {agents.length > 0 && (
         <div style={{
@@ -339,6 +366,12 @@ export default function App() {
           tasks={tasks}
           onCreateTask={handleCreateTask}
           onClose={() => setTaskMarketplaceOpen(false)}
+        />
+      )}
+
+      {governanceOpen && (
+        <GovernancePanel
+          onClose={() => setGovernanceOpen(false)}
         />
       )}
     </div>
