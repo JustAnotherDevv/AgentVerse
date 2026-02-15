@@ -1,189 +1,36 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { Html } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
-import * as THREE from "three";
 
 interface AgentBeanProps {
   id: string;
   name: string;
   position: { x: number; y: number };
-  avatar: {
-    color: string;
-    emoji: string;
-    shape: 'circle' | 'square' | 'bean' | 'star';
-  };
-  personality: {
-    mood: string;
-  };
-  stats?: {
-    reputation: number;
-    totalEarnings: number;
-    tasksCompleted: number;
-  };
-  skills?: {
-    name: string;
-    level: number;
-  }[];
+  avatar: { color: string; emoji: string; shape: 'circle' | 'square' | 'bean' | 'star'; };
+  personality?: { mood: string; };
+  stats?: { reputation: number; totalEarnings: number; tasksCompleted: number; };
+  skills?: { name: string; level: number; }[];
   onClick: () => void;
-  chatMessage?: string;
   isSelected?: boolean;
 }
 
-export function AgentBean({ name, position, avatar, personality, stats, skills, onClick, chatMessage, isSelected }: AgentBeanProps) {
+export function AgentBean({ name, position, avatar, onClick, isSelected }: AgentBeanProps) {
   const [hovered, setHovered] = useState(false);
-  const groupRef = useRef<THREE.Group>(null);
-  const targetPos = useRef(new THREE.Vector3(position.x, 1, position.y));
-  const prevPos = useRef(`${position.x},${position.y}`);
-  const isMoving = useRef(false);
-  const walkTime = useRef(0);
-
-  const getReputationColor = () => {
-    if (!stats) return '#6b7280';
-    if (stats.reputation >= 70) return '#d4a857';
-    if (stats.reputation >= 40) return '#b8956c';
-    return '#c97878';
-  };
-
-  const topSkill = skills?.sort((a, b) => b.level - a.level)[0];
-
-  useEffect(() => {
-    const key = `${position.x},${position.y}`;
-    if (prevPos.current !== key) {
-      prevPos.current = key;
-      isMoving.current = true;
-      walkTime.current = 0;
-    }
-    targetPos.current.set(position.x, 1, position.y);
-  }, [position.x, position.y, name]);
-
-  useFrame((_, delta) => {
-    if (groupRef.current) {
-      const dist = groupRef.current.position.distanceTo(targetPos.current);
-      
-      if (dist > 0.01) {
-        isMoving.current = true;
-        groupRef.current.position.lerp(targetPos.current, 2.5 * delta);
-        
-        walkTime.current += delta * 10;
-        const bob = Math.sin(walkTime.current) * 0.1;
-        groupRef.current.position.y = 1 + bob;
-      } else if (isMoving.current) {
-        isMoving.current = false;
-        groupRef.current.position.y = 1;
-      }
-    }
-  });
-
-  const getColor = () => {
-    if (hovered) return avatar.color;
-    if (isSelected) return '#fbbf24'; // gold when selected
-    return avatar.color;
-  };
-
-  const getScale = () => {
-    if (hovered) return 1.2;
-    if (isSelected) return 1.1;
-    return 1;
-  };
+  const scale = hovered ? 1.1 : isSelected ? 1.05 : 1;
 
   return (
     <group 
-      ref={groupRef}
+      position={[position.x, 0, position.y]}
       onClick={onClick}
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
-      scale={getScale()}
+      scale={scale}
     >
-      {/* Body based on shape */}
-      {avatar.shape === 'bean' && (
-        <mesh scale={[0.8, 1.2, 0.6]}>
-          <sphereGeometry args={[0.8, 32, 32]} />
-          <meshStandardMaterial 
-            color={getColor()} 
-            roughness={0.3} 
-            metalness={0.4}
-            emissive={getColor()}
-            emissiveIntensity={hovered ? 0.3 : 0.15}
-          />
-        </mesh>
-      )}
+      <mesh>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color={avatar.color} roughness={0.3} metalness={0.4} />
+      </mesh>
       
-      {(avatar.shape === 'circle' || avatar.shape === 'star') && (
-        <mesh>
-          <sphereGeometry args={[0.7, 32, 32]} />
-          <meshStandardMaterial 
-            color={getColor()} 
-            roughness={0.3} 
-            metalness={0.4}
-            emissive={getColor()}
-            emissiveIntensity={hovered ? 0.3 : 0.15}
-          />
-        </mesh>
-      )}
-
-      {avatar.shape === 'square' && (
-        <mesh>
-          <boxGeometry args={[1.2, 1.2, 1.2]} />
-          <meshStandardMaterial 
-            color={getColor()} 
-            roughness={0.3} 
-            metalness={0.4}
-            emissive={getColor()}
-            emissiveIntensity={hovered ? 0.3 : 0.15}
-          />
-        </mesh>
-      )}
-      
-      {/* Highlight */}
-      <mesh position={[0.2, 0.4, 0.3]} scale={[0.15, 0.1, 0.1]}>
-        <sphereGeometry args={[1, 16, 16]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.5} metalness={0.5} opacity={0.5} transparent />
-      </mesh>
-
-      {/* Eyes */}
-      <mesh position={[-0.2, 0.2, 0.55]}>
-        <sphereGeometry args={[0.12, 16, 16]} />
-        <meshStandardMaterial color="#1f2937" />
-      </mesh>
-      <mesh position={[0.2, 0.2, 0.55]}>
-        <sphereGeometry args={[0.12, 16, 16]} />
-        <meshStandardMaterial color="#1f2937" />
-      </mesh>
-
-      {/* Eye highlights */}
-      <mesh position={[-0.17, 0.23, 0.65]}>
-        <sphereGeometry args={[0.04, 8, 8]} />
-        <meshStandardMaterial color="white" />
-      </mesh>
-      <mesh position={[0.23, 0.23, 0.65]}>
-        <sphereGeometry args={[0.04, 8, 8]} />
-        <meshStandardMaterial color="white" />
-      </mesh>
-
-      {/* Smile */}
-      <mesh position={[0, -0.1, 0.5]} rotation={[0, 0, 0]}>
-        <torusGeometry args={[0.15, 0.03, 8, 16, Math.PI]} />
-        <meshStandardMaterial color="#4c1d95" />
-      </mesh>
-
-      {/* Shadow */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.9, 0]}>
-        <circleGeometry args={[0.7, 32]} />
-        <meshStandardMaterial color="#000000" transparent opacity={0.3} />
-      </mesh>
-
-      {/* Status indicator */}
-      <mesh position={[0.5, 0.8, 0]}>
-        <sphereGeometry args={[0.15, 16, 16]} />
-        <meshStandardMaterial 
-          color={personality.mood === 'happy' ? '#d4a857' : personality.mood === 'thinking' ? '#b8956c' : '#c9a050'} 
-          emissive={personality.mood === 'happy' ? '#d4a857' : personality.mood === 'thinking' ? '#b8956c' : '#c9a050'}
-          emissiveIntensity={0.5}
-        />
-      </mesh>
-
-      {/* Name tag */}
-      <Html position={[0, 1.8, 0]} center>
+      <Html position={[0, 1.5, 0]} center>
         <div style={{
           background: isSelected ? 'rgba(251, 191, 36, 0.9)' : 'rgba(212, 168, 87, 0.9)',
           color: "white",
@@ -200,43 +47,8 @@ export function AgentBean({ name, position, avatar, personality, stats, skills, 
         </div>
       </Html>
 
-      {/* Stats tag */}
-      {stats && (
-        <Html position={[0, 2.6, 0]} center>
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.75)',
-            color: "white",
-            padding: "3px 10px",
-            borderRadius: "8px",
-            fontSize: "10px",
-            fontFamily: "Arial, sans-serif",
-            whiteSpace: "nowrap",
-            display: "flex",
-            gap: "8px",
-            alignItems: "center",
-          }}>
-            <span style={{ color: getReputationColor() }}>★ {stats.reputation}</span>
-            <span>${stats.totalEarnings}</span>
-            <span>✓{stats.tasksCompleted}</span>
-            {topSkill && topSkill.name && <span style={{ color: '#60a5fa' }}>⚡{topSkill.name[0].toUpperCase()}{topSkill.level}</span>}
-          </div>
-        </Html>
-      )}
-
-      {/* Hover indicator */}
-      {hovered && (
-        <mesh position={[0, 1.5, 0]}>
-          <sphereGeometry args={[0.1, 16, 16]} />
-          <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={0.8} />
-        </mesh>
-      )}
-
-      {/* Chat bubble */}
-      <AgentChatBubble visible={!!chatMessage} message={chatMessage} />
-
-      {/* Click prompt */}
       {hovered && !isSelected && (
-        <Html position={[0, 2.3, 0]} center>
+        <Html position={[0, 2.5, 0]} center>
           <div style={{
             background: "rgba(0,0,0,0.7)",
             color: "white",
@@ -244,60 +56,11 @@ export function AgentBean({ name, position, avatar, personality, stats, skills, 
             borderRadius: "4px",
             fontSize: "10px",
             fontFamily: "Arial, sans-serif",
-            whiteSpace: "nowrap",
           }}>
             Click to chat
           </div>
         </Html>
       )}
     </group>
-  );
-}
-
-function AgentChatBubble({ visible, message }: { visible: boolean; message?: string }) {
-  if (!visible || !message) return null;
-
-  return (
-    <Html position={[0, 1.8, 0]} center>
-      <div style={{
-        background: "white",
-        padding: "10px 14px",
-        borderRadius: "14px",
-        border: "2px solid #d4a857",
-        fontSize: "14px",
-        fontFamily: "Arial, sans-serif",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.25)",
-        position: "relative",
-        maxWidth: "300px",
-        minWidth: "80px",
-        width: "auto",
-        maxHeight: "120px",
-        overflowY: "auto",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        textAlign: "center",
-        animation: "fadeIn 0.2s ease-out",
-      }}>
-        {message}
-        <div style={{
-          position: "absolute",
-          bottom: "-10px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 0,
-          height: 0,
-          borderLeft: "10px solid transparent",
-          borderRight: "10px solid transparent",
-          borderTop: "10px solid #d4a857",
-        }} />
-      </div>
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(5px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-    </Html>
   );
 }

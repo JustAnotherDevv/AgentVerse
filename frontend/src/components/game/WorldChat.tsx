@@ -31,7 +31,7 @@ export function WorldChat({ messages }: WorldChatProps) {
       borderLeft: `2px solid ${theme.colors.border.default}`,
       display: 'flex',
       flexDirection: 'column',
-      zIndex: 2000,
+      zIndex: 5000,
       fontFamily: theme.fonts.mono,
     }}>
       {/* Header */}

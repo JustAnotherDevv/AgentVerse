@@ -73,7 +73,7 @@ export function AgentChat({ open, onClose, agent, onSend }: AgentChatProps) {
     <div style={{
       position: "fixed",
       bottom: theme.spacing.md,
-      right: theme.spacing.md,
+      left: theme.spacing.md,
       width: "340px",
       height: "440px",
       background: theme.colors.background.secondary,
@@ -81,7 +81,7 @@ export function AgentChat({ open, onClose, agent, onSend }: AgentChatProps) {
       display: "flex",
       flexDirection: "column",
       overflow: "hidden",
-      zIndex: 1000,
+      zIndex: 3000,
       fontFamily: theme.fonts.mono,
     }}>
       {/* Header */}

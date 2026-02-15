@@ -42,7 +42,7 @@ export function AgentPanel({ agent, open = true, onClose, onTip }: AgentPanelPro
       width: "300px",
       background: theme.colors.background.secondary,
       border: `2px solid ${theme.colors.border.default}`,
-      zIndex: 2000,
+      zIndex: 5000,
       overflow: "hidden",
       fontFamily: theme.fonts.mono,
     }}>

@@ -26,7 +26,7 @@ export function MainMenu({ onStart }: MainMenuProps) {
       right: 0,
       bottom: 0,
       background: theme.colors.background.primary,
-      zIndex: 3000,
+      zIndex: 10000,
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
@@ -107,7 +107,7 @@ export function MainMenu({ onStart }: MainMenuProps) {
           <div style={{
             display: "flex",
             flexDirection: "column",
-            gap: "8px",
+            gap: "16px",
             alignItems: "center",
           }}>
             <div style={{
@@ -124,13 +124,15 @@ export function MainMenu({ onStart }: MainMenuProps) {
             <button
               onClick={logout}
               style={{
-                padding: "8px 24px",
+                padding: "12px 48px",
                 background: "transparent",
-                border: `1px solid ${theme.colors.border.subtle}`,
-                color: theme.colors.text.muted,
-                fontSize: theme.fontSize.xs,
+                border: `1px solid ${theme.colors.border.default}`,
+                color: theme.colors.text.secondary,
+                fontSize: theme.fontSize.base,
                 fontFamily: theme.fonts.mono,
                 cursor: "pointer",
+                letterSpacing: "1px",
+                width: "100%",
               }}
             >
               DISCONNECT

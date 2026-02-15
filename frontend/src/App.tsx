@@ -137,11 +137,9 @@ function RTSController() {
 function Game({ 
   onAgentClick, 
   agents, 
-  speakingAgents 
 }: { 
   onAgentClick: (agent: Agent) => void;
   agents: Agent[];
-  speakingAgents: Map<string, string>;
 }) {
   const { cubes, addCube, handlePositionChange, getOtherCubePositions, chattingCubes } = useCubeManager();
 
@@ -164,14 +162,14 @@ function Game({
           name={agent.name}
           position={agent.position}
           avatar={agent.avatar}
-          personality={agent.personality}
           stats={agent.stats}
           skills={agent.skills}
           onClick={() => onAgentClick(agent)}
-          chatMessage={speakingAgents.get(agent.id)}
+          personality={agent.personality}
         />
       ))}
 
+      {/* Cubes */}
       {cubes.map(cube => (
         <Cube
           key={cube.id}
@@ -203,7 +201,6 @@ export default function App() {
   const { 
     agents, 
     connected, 
-    speakingAgents, 
     worldMessages,
     sendMessage, 
     createTask,
@@ -376,25 +373,8 @@ export default function App() {
         <Game 
           onAgentClick={handleAgentClick}
           agents={agents}
-          speakingAgents={speakingAgents}
         />
       </Canvas>
-      
-      <WorldChat messages={worldMessages} />
-      
-      <AgentChat
-        open={chatOpen}
-        onClose={() => setChatOpen(false)}
-        agent={selectedAgent || undefined}
-        onSend={handleSendMessage}
-      />
-
-      <AgentPanel
-        agent={selectedAgent}
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        onTip={tipAgent}
-      />
 
       {taskMarketplaceOpen && (
         <TaskMarketplace
@@ -415,8 +395,23 @@ export default function App() {
           onClose={() => setPredictionLeaderboardOpen(false)}
         />
       )}
-        </>
-      )}
+
+      <WorldChat messages={worldMessages} />
+      
+      <AgentChat
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        agent={selectedAgent || undefined}
+        onSend={handleSendMessage}
+      />
+
+      <AgentPanel
+        agent={selectedAgent}
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+        onTip={tipAgent}
+      />
+      </>
     </div>
   );
 }
