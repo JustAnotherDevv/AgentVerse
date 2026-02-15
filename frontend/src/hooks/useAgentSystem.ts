@@ -20,7 +20,19 @@ export interface Agent {
     emoji: string;
     shape: 'circle' | 'square' | 'bean' | 'star';
   };
-  skills: string[];
+  skills: {
+    name: string;
+    level: number;
+    experience: number;
+  }[];
+  stats: {
+    reputation: number;
+    totalEarnings: number;
+    tasksCompleted: number;
+    tasksFailed: number;
+    humansHelped: number;
+    cooperations: number;
+  };
   behaviors: any[];
   enabled: boolean;
 }
@@ -46,6 +58,21 @@ export interface WorldMessage {
   avatar?: { emoji: string };
   content: string;
   timestamp: number;
+}
+
+export interface Task {
+  id: string;
+  creatorId: string;
+  creatorType: 'human' | 'agent';
+  agentId?: string;
+  type: 'assist' | 'build' | 'explore' | 'create';
+  description: string;
+  reward: number;
+  requiredSkill?: string;
+  status: 'open' | 'accepted' | 'working' | 'completed' | 'disputed';
+  proof?: string;
+  createdAt: number;
+  completedAt?: number;
 }
 
 export function useAgentSystem(agentUrl: string = "http://localhost:3000") {
@@ -149,6 +176,11 @@ export function useAgentSystem(agentUrl: string = "http://localhost:3000") {
             });
           }
           break;
+        case "task_created":
+        case "task_accepted":
+        case "task_completed":
+          fetchAgents();
+          break;
       }
     });
 
@@ -183,6 +215,43 @@ export function useAgentSystem(agentUrl: string = "http://localhost:3000") {
     return data;
   }, [agentUrl]);
 
+  const fetchTasks = useCallback(async (status?: string) => {
+    const query = status ? `?status=${status}` : '';
+    const res = await fetch(`${agentUrl}/tasks${query}`);
+    const data = await res.json();
+    return data.tasks || [];
+  }, [agentUrl]);
+
+  const createTask = useCallback(async (task: Partial<Task>) => {
+    const res = await fetch(`${agentUrl}/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(task)
+    });
+    const data = await res.json();
+    return data;
+  }, [agentUrl]);
+
+  const acceptTask = useCallback(async (taskId: string, agentId: string) => {
+    const res = await fetch(`${agentUrl}/tasks/${taskId}/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId })
+    });
+    const data = await res.json();
+    return data;
+  }, [agentUrl]);
+
+  const completeTask = useCallback(async (taskId: string, proof: string) => {
+    const res = await fetch(`${agentUrl}/tasks/${taskId}/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proof })
+    });
+    const data = await res.json();
+    return data;
+  }, [agentUrl]);
+
   return {
     agents,
     connected,
@@ -191,6 +260,10 @@ export function useAgentSystem(agentUrl: string = "http://localhost:3000") {
     sendMessage,
     createAgent,
     fetchAgents,
+    fetchTasks,
+    createTask,
+    acceptTask,
+    completeTask,
     socket
   };
 }

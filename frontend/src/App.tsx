@@ -4,6 +4,8 @@ import * as THREE from "three";
 import { Cube, GridGround, useCubeManager, AgentBean } from "./components/game";
 import { AgentChat } from "./components/game/AgentChat";
 import { WorldChat } from "./components/game/WorldChat";
+import { AgentPanel } from "./components/game/AgentPanel";
+import { TaskMarketplace } from "./components/game/TaskMarketplace";
 import { useAgentSystem, type Agent } from "./hooks/useAgentSystem";
 
 function getOrCreateSessionId(): string {
@@ -158,6 +160,8 @@ function Game({
           position={agent.position}
           avatar={agent.avatar}
           personality={agent.personality}
+          stats={agent.stats}
+          skills={agent.skills}
           onClick={() => onAgentClick(agent)}
           chatMessage={speakingAgents.get(agent.id)}
         />
@@ -182,6 +186,9 @@ export default function App() {
   useInput();
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [taskMarketplaceOpen, setTaskMarketplaceOpen] = useState(false);
+  const [tasks, setTasks] = useState<any[]>([]);
   const [sessionId] = useState(() => getOrCreateSessionId());
   
   const { 
@@ -190,10 +197,17 @@ export default function App() {
     speakingAgents, 
     worldMessages,
     sendMessage, 
+    createTask,
+    fetchTasks,
   } = useAgentSystem();
+
+  useEffect(() => {
+    fetchTasks().then(setTasks);
+  }, [fetchTasks]);
 
   const handleAgentClick = useCallback((agent: Agent) => {
     setSelectedAgent(agent);
+    setPanelOpen(true);
     setChatOpen(true);
   }, []);
 
@@ -201,6 +215,13 @@ export default function App() {
     if (!selectedAgent) return;
     return await sendMessage(selectedAgent.id, message, sessionId);
   }, [selectedAgent, sendMessage, sessionId]);
+
+  const handleCreateTask = useCallback(async (task: any) => {
+    const result = await createTask(task);
+    const updatedTasks = await fetchTasks();
+    setTasks(updatedTasks);
+    return result;
+  }, [createTask, fetchTasks]);
 
   return (
     <div className="w-screen h-screen bg-black">
@@ -224,6 +245,31 @@ export default function App() {
           {connected ? `Connected (${agents.length} agents)` : 'Connecting...'}
         </span>
       </div>
+
+      {/* Task Marketplace Button */}
+      <button
+        onClick={() => setTaskMarketplaceOpen(true)}
+        style={{
+          position: 'fixed',
+          top: 10,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 100,
+          padding: '8px 16px',
+          background: 'rgba(139, 92, 246, 0.9)',
+          border: 'none',
+          borderRadius: '8px',
+          color: 'white',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+      >
+        📋 Tasks ({tasks.filter(t => t.status === 'open').length})
+      </button>
 
       {/* Agent selector in top right */}
       {agents.length > 0 && (
@@ -278,6 +324,21 @@ export default function App() {
         agent={selectedAgent || undefined}
         onSend={handleSendMessage}
       />
+
+      <AgentPanel
+        agent={selectedAgent}
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+      />
+
+      {taskMarketplaceOpen && (
+        <TaskMarketplace
+          agents={agents}
+          tasks={tasks}
+          onCreateTask={handleCreateTask}
+          onClose={() => setTaskMarketplaceOpen(false)}
+        />
+      )}
     </div>
   );
 }

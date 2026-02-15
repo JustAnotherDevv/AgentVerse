@@ -15,31 +15,61 @@ interface AgentBeanProps {
   personality: {
     mood: string;
   };
+  stats?: {
+    reputation: number;
+    totalEarnings: number;
+    tasksCompleted: number;
+  };
+  skills?: {
+    name: string;
+    level: number;
+  }[];
   onClick: () => void;
   chatMessage?: string;
   isSelected?: boolean;
 }
 
-export function AgentBean({ name, position, avatar, personality, onClick, chatMessage, isSelected }: AgentBeanProps) {
+export function AgentBean({ name, position, avatar, personality, stats, skills, onClick, chatMessage, isSelected }: AgentBeanProps) {
   const [hovered, setHovered] = useState(false);
   const groupRef = useRef<THREE.Group>(null);
   const targetPos = useRef(new THREE.Vector3(position.x, 1, position.y));
   const prevPos = useRef(`${position.x},${position.y}`);
+  const isMoving = useRef(false);
+  const walkTime = useRef(0);
+
+  const getReputationColor = () => {
+    if (!stats) return '#6b7280';
+    if (stats.reputation >= 70) return '#22c55e';
+    if (stats.reputation >= 40) return '#f59e0b';
+    return '#ef4444';
+  };
+
+  const topSkill = skills?.sort((a, b) => b.level - a.level)[0];
 
   useEffect(() => {
     const key = `${position.x},${position.y}`;
     if (prevPos.current !== key) {
-      console.log(`🚶 ${name} moving to:`, position.x, position.y);
       prevPos.current = key;
+      isMoving.current = true;
+      walkTime.current = 0;
     }
     targetPos.current.set(position.x, 1, position.y);
   }, [position.x, position.y, name]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (groupRef.current) {
       const dist = groupRef.current.position.distanceTo(targetPos.current);
+      
       if (dist > 0.01) {
-        groupRef.current.position.lerp(targetPos.current, 0.1);
+        isMoving.current = true;
+        groupRef.current.position.lerp(targetPos.current, 2.5 * delta);
+        
+        walkTime.current += delta * 10;
+        const bob = Math.sin(walkTime.current) * 0.1;
+        groupRef.current.position.y = 1 + bob;
+      } else if (isMoving.current) {
+        isMoving.current = false;
+        groupRef.current.position.y = 1;
       }
     }
   });
@@ -169,6 +199,29 @@ export function AgentBean({ name, position, avatar, personality, onClick, chatMe
           {avatar.emoji} {name}
         </div>
       </Html>
+
+      {/* Stats tag */}
+      {stats && (
+        <Html position={[0, 2.6, 0]} center>
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.75)',
+            color: "white",
+            padding: "3px 10px",
+            borderRadius: "8px",
+            fontSize: "10px",
+            fontFamily: "Arial, sans-serif",
+            whiteSpace: "nowrap",
+            display: "flex",
+            gap: "8px",
+            alignItems: "center",
+          }}>
+            <span style={{ color: getReputationColor() }}>★ {stats.reputation}</span>
+            <span>${stats.totalEarnings}</span>
+            <span>✓{stats.tasksCompleted}</span>
+            {topSkill && topSkill.name && <span style={{ color: '#60a5fa' }}>⚡{topSkill.name[0].toUpperCase()}{topSkill.level}</span>}
+          </div>
+        </Html>
+      )}
 
       {/* Hover indicator */}
       {hovered && (

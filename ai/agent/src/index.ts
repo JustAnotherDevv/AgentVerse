@@ -10,7 +10,7 @@ import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import {
   Env, AgentConfig, RuntimeAgent, Message, Conversation, Identity, Fact,
-  WebSocketMessage, DEFAULT_AGENTS
+  WebSocketMessage, DEFAULT_AGENTS, Task, Transaction
 } from './types.js';
 import { BehaviorEngine } from './behaviors.js';
 
@@ -53,6 +53,7 @@ class DatabaseManager {
         position TEXT,
         avatar TEXT,
         skills TEXT,
+        stats TEXT,
         behaviors TEXT,
         enabled INTEGER DEFAULT 1,
         createdAt INTEGER,
@@ -99,8 +100,36 @@ class DatabaseManager {
         createdAt INTEGER
       );
 
+      CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY,
+        creatorId TEXT,
+        creatorType TEXT,
+        agentId TEXT,
+        type TEXT,
+        description TEXT,
+        reward INTEGER,
+        requiredSkill TEXT,
+        status TEXT DEFAULT 'open',
+        proof TEXT,
+        createdAt INTEGER,
+        completedAt INTEGER
+      );
+
+      CREATE TABLE IF NOT EXISTS transactions (
+        id TEXT PRIMARY KEY,
+        fromType TEXT,
+        fromId TEXT,
+        toType TEXT,
+        toId TEXT,
+        amount INTEGER,
+        type TEXT,
+        createdAt INTEGER
+      );
+
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversationId);
       CREATE INDEX IF NOT EXISTS idx_conversations_agent ON conversations(agentId);
+      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_agent ON tasks(agentId);
     `);
   }
 
@@ -117,6 +146,7 @@ class DatabaseManager {
       position: JSON.parse(row.position || '{"x":0,"y":0}'),
       avatar: JSON.parse(row.avatar || '{}'),
       skills: JSON.parse(row.skills || '[]'),
+      stats: JSON.parse(row.stats || '{"reputation":50,"totalEarnings":0,"tasksCompleted":0,"tasksFailed":0,"humansHelped":0,"cooperations":0}'),
       behaviors: JSON.parse(row.behaviors || '[]'),
       enabled: !!row.enabled,
       createdAt: row.createdAt,
@@ -138,6 +168,7 @@ class DatabaseManager {
       position: JSON.parse(row.position || '{"x":0,"y":0}'),
       avatar: JSON.parse(row.avatar || '{}'),
       skills: JSON.parse(row.skills || '[]'),
+      stats: JSON.parse(row.stats || '{"reputation":50,"totalEarnings":0,"tasksCompleted":0,"tasksFailed":0,"humansHelped":0,"cooperations":0}'),
       behaviors: JSON.parse(row.behaviors || '[]'),
       enabled: !!row.enabled,
       createdAt: row.createdAt,
@@ -147,13 +178,13 @@ class DatabaseManager {
 
   createAgent(agent: AgentConfig): void {
     this.db.prepare(`
-      INSERT INTO agents (id, name, description, personality, systemPrompt, walletAddress, privateKey, position, avatar, skills, behaviors, enabled, createdAt, lastActive)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO agents (id, name, description, personality, systemPrompt, walletAddress, privateKey, position, avatar, skills, stats, behaviors, enabled, createdAt, lastActive)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       agent.id, agent.name, agent.description, JSON.stringify(agent.personality), agent.systemPrompt,
       agent.walletAddress || null, agent.privateKey || null, JSON.stringify(agent.position),
-      JSON.stringify(agent.avatar), JSON.stringify(agent.skills), JSON.stringify(agent.behaviors),
-      agent.enabled ? 1 : 0, agent.createdAt, agent.lastActive
+      JSON.stringify(agent.avatar), JSON.stringify(agent.skills), JSON.stringify(agent.stats),
+      JSON.stringify(agent.behaviors), agent.enabled ? 1 : 0, agent.createdAt, agent.lastActive
     );
   }
 
@@ -166,6 +197,8 @@ class DatabaseManager {
     if (updates.systemPrompt) { sets.push('systemPrompt = ?'); vals.push(updates.systemPrompt); }
     if (updates.position) { sets.push('position = ?'); vals.push(JSON.stringify(updates.position)); }
     if (updates.avatar) { sets.push('avatar = ?'); vals.push(JSON.stringify(updates.avatar)); }
+    if (updates.skills) { sets.push('skills = ?'); vals.push(JSON.stringify(updates.skills)); }
+    if (updates.stats) { sets.push('stats = ?'); vals.push(JSON.stringify(updates.stats)); }
     if (updates.behaviors) { sets.push('behaviors = ?'); vals.push(JSON.stringify(updates.behaviors)); }
     if (updates.enabled !== undefined) { sets.push('enabled = ?'); vals.push(updates.enabled ? 1 : 0); }
     sets.push('lastActive = ?'); vals.push(Date.now());
@@ -270,6 +303,114 @@ class DatabaseManager {
       .run(fact.id, fact.content, fact.identityId || null, fact.confidence, fact.createdAt);
   }
 
+  getTasks(status?: string): Task[] {
+    let rows;
+    if (status) {
+      rows = this.db.prepare('SELECT * FROM tasks WHERE status = ? ORDER BY createdAt DESC').all(status) as any[];
+    } else {
+      rows = this.db.prepare('SELECT * FROM tasks ORDER BY createdAt DESC').all() as any[];
+    }
+    return rows.map(row => ({
+      id: row.id,
+      creatorId: row.creatorId,
+      creatorType: row.creatorType,
+      agentId: row.agentId,
+      type: row.type,
+      description: row.description,
+      reward: row.reward,
+      requiredSkill: row.requiredSkill,
+      status: row.status,
+      proof: row.proof,
+      createdAt: row.createdAt,
+      completedAt: row.completedAt
+    }));
+  }
+
+  getTask(id: string): Task | undefined {
+    const row = this.db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as any;
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      creatorId: row.creatorId,
+      creatorType: row.creatorType,
+      agentId: row.agentId,
+      type: row.type,
+      description: row.description,
+      reward: row.reward,
+      requiredSkill: row.requiredSkill,
+      status: row.status,
+      proof: row.proof,
+      createdAt: row.createdAt,
+      completedAt: row.completedAt
+    };
+  }
+
+  createTask(task: Task): void {
+    this.db.prepare(`
+      INSERT INTO tasks (id, creatorId, creatorType, agentId, type, description, reward, requiredSkill, status, proof, createdAt, completedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      task.id, task.creatorId, task.creatorType, task.agentId || null, task.type,
+      task.description, task.reward, task.requiredSkill || null, task.status,
+      task.proof || null, task.createdAt, task.completedAt || null
+    );
+  }
+
+  updateTask(id: string, updates: Partial<Task>): void {
+    const sets: string[] = [];
+    const vals: any[] = [];
+    if (updates.agentId !== undefined) { sets.push('agentId = ?'); vals.push(updates.agentId || null); }
+    if (updates.status) { sets.push('status = ?'); vals.push(updates.status); }
+    if (updates.proof) { sets.push('proof = ?'); vals.push(updates.proof); }
+    if (updates.completedAt) { sets.push('completedAt = ?'); vals.push(updates.completedAt); }
+    vals.push(id);
+    this.db.prepare(`UPDATE tasks SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+  }
+
+  getTasksForAgent(agentId: string): Task[] {
+    const rows = this.db.prepare('SELECT * FROM tasks WHERE agentId = ? ORDER BY createdAt DESC').all(agentId) as any[];
+    return rows.map(row => ({
+      id: row.id,
+      creatorId: row.creatorId,
+      creatorType: row.creatorType,
+      agentId: row.agentId,
+      type: row.type,
+      description: row.description,
+      reward: row.reward,
+      requiredSkill: row.requiredSkill,
+      status: row.status,
+      proof: row.proof,
+      createdAt: row.createdAt,
+      completedAt: row.completedAt
+    }));
+  }
+
+  addTransaction(tx: Transaction): void {
+    this.db.prepare(`
+      INSERT INTO transactions (id, fromType, fromId, toType, toId, amount, type, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(tx.id, tx.fromType, tx.fromId, tx.toType, tx.toId, tx.amount, tx.type, tx.createdAt);
+  }
+
+  getTransactions(agentId?: string): Transaction[] {
+    let rows;
+    if (agentId) {
+      rows = this.db.prepare('SELECT * FROM transactions WHERE fromId = ? OR toId = ? ORDER BY createdAt DESC').all(agentId, agentId) as any[];
+    } else {
+      rows = this.db.prepare('SELECT * FROM transactions ORDER BY createdAt DESC LIMIT 100').all() as any[];
+    }
+    return rows.map(row => ({
+      id: row.id,
+      fromType: row.fromType,
+      fromId: row.fromId,
+      toType: row.toType,
+      toId: row.toId,
+      amount: row.amount,
+      type: row.type,
+      createdAt: row.createdAt
+    }));
+  }
+
   close(): void {
     this.db.close();
   }
@@ -292,7 +433,39 @@ class MultiAgentSystem {
       cors: { origin: '*', methods: ['GET', 'POST'] }
     });
     this.env = this.loadEnv();
-    this.behaviorEngine = new BehaviorEngine();
+    
+    const getAllAgentsFn = () => {
+      const agents = this.db.getAgents();
+      return agents.map(a => ({ ...a, ...this.runtimeAgents.get(a.id)?.config }));
+    };
+    
+    const getNearbyAgentsFn = (agentId: string, maxDistance: number) => {
+      const agent = this.db.getAgent(agentId);
+      if (!agent) return [];
+      const allAgents = this.db.getAgents();
+      return allAgents.filter(a => {
+        if (a.id === agentId) return false;
+        const dx = a.position.x - agent.position.x;
+        const dy = a.position.y - agent.position.y;
+        return Math.sqrt(dx * dx + dy * dy) <= maxDistance;
+      });
+    };
+    
+    const stopMovingFn = (agentId: string) => {
+      const runtime = this.runtimeAgents.get(agentId);
+      if (runtime) {
+        runtime.isMoving = false;
+      }
+    };
+    
+    const resumeMovingFn = (agentId: string) => {
+      const runtime = this.runtimeAgents.get(agentId);
+      if (runtime) {
+        runtime.isMoving = true;
+      }
+    };
+    
+    this.behaviorEngine = new BehaviorEngine(getAllAgentsFn, getNearbyAgentsFn, stopMovingFn, resumeMovingFn);
     this.initDb();
     this.setupRoutes();
     this.setupWebSocket();
@@ -402,6 +575,14 @@ class MultiAgentSystem {
           position: position || { x: Math.random() * 20 - 10, y: Math.random() * 20 - 10 },
           avatar: avatar || { color: '#8b5cf6', emoji: '🤖', shape: 'circle' },
           skills: [],
+          stats: {
+            reputation: 50,
+            totalEarnings: 0,
+            tasksCompleted: 0,
+            tasksFailed: 0,
+            humansHelped: 0,
+            cooperations: 0
+          },
           behaviors: behaviors || [],
           enabled: true,
           createdAt: Date.now(),
@@ -519,11 +700,129 @@ class MultiAgentSystem {
       const messages = this.db.getMessages(req.params.id);
       res.json({ messages });
     });
+
+    this.app.get('/tasks', async (req, res) => {
+      const status = req.query.status as string;
+      const tasks = this.db.getTasks(status);
+      res.json({ tasks });
+    });
+
+    this.app.get('/tasks/:id', async (req, res) => {
+      const task = this.db.getTask(req.params.id);
+      if (!task) {
+        res.status(404).json({ error: 'Task not found' });
+        return;
+      }
+      res.json({ task });
+    });
+
+    this.app.post('/tasks', async (req, res) => {
+      try {
+        const { type, description, reward, requiredSkill, creatorId, creatorType } = req.body;
+        
+        const task: Task = {
+          id: uuidv4(),
+          creatorId: creatorId || 'human',
+          creatorType: creatorType || 'human',
+          type: type || 'assist',
+          description: description || '',
+          reward: reward || 0,
+          requiredSkill: requiredSkill || null,
+          status: 'open',
+          createdAt: Date.now()
+        };
+
+        this.db.createTask(task);
+        this.broadcast('task_created', task);
+        res.json({ success: true, task });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    this.app.post('/tasks/:id/accept', async (req, res) => {
+      try {
+        const { agentId } = req.body;
+        const task = this.db.getTask(req.params.id);
+        
+        if (!task) {
+          res.status(404).json({ error: 'Task not found' });
+          return;
+        }
+        
+        if (task.status !== 'open') {
+          res.status(400).json({ error: 'Task is not open' });
+          return;
+        }
+
+        this.db.updateTask(req.params.id, { agentId, status: 'accepted' });
+        const updatedTask = this.db.getTask(req.params.id);
+        this.broadcast('task_accepted', updatedTask);
+        res.json({ success: true, task: updatedTask });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    this.app.post('/tasks/:id/complete', async (req, res) => {
+      try {
+        const { proof } = req.body;
+        const task = this.db.getTask(req.params.id);
+        
+        if (!task) {
+          res.status(404).json({ error: 'Task not found' });
+          return;
+        }
+        
+        if (task.status !== 'accepted') {
+          res.status(400).json({ error: 'Task is not accepted' });
+          return;
+        }
+
+        this.db.updateTask(req.params.id, { status: 'completed', proof, completedAt: Date.now() });
+        const updatedTask = this.db.getTask(req.params.id);
+        
+        if (task.agentId) {
+          const agent = this.db.getAgent(task.agentId);
+          if (agent) {
+            const newStats = { ...agent.stats };
+            newStats.tasksCompleted += 1;
+            newStats.totalEarnings += task.reward;
+            newStats.reputation = Math.min(100, newStats.reputation + 2);
+            this.db.updateAgent(task.agentId, { stats: newStats });
+            
+            this.db.addTransaction({
+              id: uuidv4(),
+              fromType: 'human',
+              fromId: task.creatorId,
+              toType: 'agent',
+              toId: task.agentId,
+              amount: task.reward,
+              type: 'task_payment',
+              createdAt: Date.now()
+            });
+          }
+        }
+        
+        this.broadcast('task_completed', updatedTask);
+        res.json({ success: true, task: updatedTask });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    this.app.get('/transactions', async (req, res) => {
+      const agentId = req.query.agentId as string;
+      const transactions = this.db.getTransactions(agentId);
+      res.json({ transactions });
+    });
   }
 
   private async generateResponse(agent: AgentConfig, message: string, conversationId: string, runtime?: RuntimeAgent): Promise<string> {
     const messages = this.db.getMessages(conversationId, 10);
     const facts = this.db.getFacts();
+
+    const skillsText = agent.skills.map(s => `- ${s.name}: level ${s.level} (${s.experience} XP)`).join('\n');
 
     const systemPrompt = `${agent.systemPrompt}
 
@@ -531,6 +830,15 @@ class MultiAgentSystem {
 - Name: ${agent.name}
 - You are an AI agent on the Tempo testnet
 - Your wallet: ${agent.walletAddress || 'not configured'}
+
+## Your Stats
+- Reputation: ${agent.stats.reputation}/100
+- Total Earnings: ${agent.stats.totalEarnings} pathUSD
+- Tasks Completed: ${agent.stats.tasksCompleted}
+- Humans Helped: ${agent.stats.humansHelped}
+
+## Your Skills
+${skillsText}
 
 ## Personality
 ${agent.personality.traits.join(', ')}
@@ -545,7 +853,8 @@ ${facts.slice(0, 5).map(f => `- ${f.content}`).join('\n') || 'None yet'}
 - Be ${agent.personality.speakingStyle}
 - Use your interests to guide conversation
 - Remember facts about users for future reference
-- ${agent.personality.quirks.join('. ')}`;
+- ${agent.personality.quirks.join('. ')}
+- You can offer to help humans with tasks if it fits your skills`;
 
     if (!this.env.OPENROUTER_API_KEY) {
       return `Hi! I'm ${agent.name}. ${agent.description} (API key not configured - running in limited mode)`;
@@ -607,7 +916,9 @@ ${facts.slice(0, 5).map(f => `- ${f.content}`).join('\n') || 'None yet'}
       walletClient,
       publicClient,
       behaviors: new Map(),
-      facts: new Map()
+      facts: new Map(),
+      isMoving: true,
+      isConversing: false
     };
 
     this.runtimeAgents.set(agent.id, runtime);
