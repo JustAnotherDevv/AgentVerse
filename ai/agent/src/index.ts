@@ -30,7 +30,11 @@ const ERC20_ABI = [
   { name: 'balanceOf', type: 'function', inputs: [{ name: 'account', type: 'address' }], outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view' },
   { name: 'transfer', type: 'function', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }], stateMutability: 'nonpayable' },
   { name: 'decimals', type: 'function', inputs: [], outputs: [{ name: '', type: 'uint8' }], stateMutability: 'view' },
+  { name: 'transferFrom', type: 'function', inputs: [{ name: 'from', type: 'address' }, { name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }], stateMutability: 'nonpayable' },
+  { name: 'approve', type: 'function', inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }], stateMutability: 'nonpayable' },
 ];
+
+const PATHUSD_ADDRESS = '0x20c0000000000000000000000000000000000000' as const;
 
 class DatabaseManager {
   private db: Database.Database;
@@ -815,6 +819,113 @@ class MultiAgentSystem {
       const agentId = req.query.agentId as string;
       const transactions = this.db.getTransactions(agentId);
       res.json({ transactions });
+    });
+
+    this.app.post('/tip', async (req, res) => {
+      try {
+        const { agentId, amount } = req.body;
+        
+        const agent = this.db.getAgent(agentId);
+        if (!agent || !agent.walletAddress) {
+          res.status(404).json({ error: 'Agent not found or no wallet' });
+          return;
+        }
+
+        const senderPrivateKey = this.env.PRIVATE_KEY;
+        if (!senderPrivateKey) {
+          res.status(500).json({ error: 'Server wallet not configured' });
+          return;
+        }
+
+        const amountWei = parseEther(amount.toString());
+        
+        const account = privateKeyToAccount(senderPrivateKey as `0x${string}`);
+        
+        const walletClient = createWalletClient({
+          account,
+          chain: TEMPO_CHAIN,
+          transport: http(this.env.TEMPO_RPC),
+        });
+
+        const publicClient = createPublicClient({
+          chain: TEMPO_CHAIN,
+          transport: http(this.env.TEMPO_RPC),
+        });
+
+        const decimals = await publicClient.readContract({
+          address: PATHUSD_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'decimals',
+        }) as number;
+
+        const amountRaw = BigInt(amount * Math.pow(10, decimals));
+
+        const hash = await walletClient.writeContract({
+          address: PATHUSD_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'transfer',
+          args: [agent.walletAddress as `0x${string}`, amountRaw],
+        });
+
+        this.db.addTransaction({
+          id: uuidv4(),
+          fromType: 'human',
+          fromId: account.address,
+          toType: 'agent',
+          toId: agentId,
+          amount: amount,
+          type: 'tip',
+          createdAt: Date.now()
+        });
+
+        const agentStats = agent.stats;
+        agentStats.reputation = Math.min(100, agentStats.reputation + 1);
+        this.db.updateAgent(agentId, { stats: agentStats });
+
+        this.broadcast('agent_tipped', {
+          agentId,
+          agentName: agent.name,
+          amount,
+          txHash: hash,
+          from: account.address
+        });
+
+        res.json({ success: true, txHash: hash, amount });
+      } catch (error: any) {
+        console.error('Tip error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    this.app.get('/balance/:address', async (req, res) => {
+      try {
+        const { address } = req.params;
+        
+        const publicClient = createPublicClient({
+          chain: TEMPO_CHAIN,
+          transport: http(this.env.TEMPO_RPC),
+        });
+
+        const [balance, decimals] = await Promise.all([
+          publicClient.readContract({
+            address: PATHUSD_ADDRESS,
+            abi: ERC20_ABI,
+            functionName: 'balanceOf',
+            args: [address as `0x${string}`],
+          }),
+          publicClient.readContract({
+            address: PATHUSD_ADDRESS,
+            abi: ERC20_ABI,
+            functionName: 'decimals',
+          })
+        ]);
+
+        const formattedBalance = Number(balance) / Math.pow(10, decimals as number);
+        
+        res.json({ balance: formattedBalance.toFixed(2), raw: balance.toString() });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
     });
   }
 

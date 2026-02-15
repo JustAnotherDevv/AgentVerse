@@ -1,15 +1,19 @@
 import { useState } from "react";
-import { X, Star, DollarSign, CheckCircle, Users, GitBranch, Zap } from "lucide-react";
+import { X, Star, DollarSign, CheckCircle, Users, GitBranch, Zap, Loader2 } from "lucide-react";
 import type { Agent } from "../../hooks/useAgentSystem";
 
 interface AgentPanelProps {
   agent: Agent | null;
   open?: boolean;
   onClose: () => void;
+  onTip?: (agentId: string, amount: number) => Promise<any>;
 }
 
-export function AgentPanel({ agent, open = true, onClose }: AgentPanelProps) {
+export function AgentPanel({ agent, open = true, onClose, onTip }: AgentPanelProps) {
   const [activeTab, setActiveTab] = useState<"stats" | "skills">("stats");
+  const [tipAmount, setTipAmount] = useState(5);
+  const [tipping, setTipping] = useState(false);
+  const [tipResult, setTipResult] = useState<{ success?: boolean; txHash?: string; error?: string } | null>(null);
 
   if (!agent || !open) return null;
 
@@ -20,6 +24,20 @@ export function AgentPanel({ agent, open = true, onClose }: AgentPanelProps) {
     tasksFailed: 0,
     humansHelped: 0,
     cooperations: 0
+  };
+
+  const handleTip = async () => {
+    if (!onTip || tipping) return;
+    setTipping(true);
+    setTipResult(null);
+    try {
+      const result = await onTip(agent.id, tipAmount);
+      setTipResult({ success: true, txHash: result.txHash });
+    } catch (err: any) {
+      setTipResult({ success: false, error: err.message });
+    } finally {
+      setTipping(false);
+    }
   };
 
   const getRepColor = () => {
@@ -261,25 +279,77 @@ export function AgentPanel({ agent, open = true, onClose }: AgentPanelProps) {
         )}
       </div>
 
-      {/* Action buttons */}
+      {/* Tip Section */}
       <div style={{ padding: "16px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
-        <button style={{
-          width: "100%",
-          padding: "12px",
-          background: "linear-gradient(135deg, #8b5cf6, #6366f1)",
-          border: "none",
-          borderRadius: "8px",
-          color: "white",
-          fontWeight: "bold",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "8px",
-        }}>
-          <DollarSign size={16} />
-          Tip this Agent
-        </button>
+        {tipResult?.success ? (
+          <div style={{
+            padding: "12px",
+            background: "rgba(34, 197, 94, 0.2)",
+            borderRadius: "8px",
+            border: "1px solid #22c55e",
+          }}>
+            <p style={{ margin: "0 0 8px 0", color: "#22c55e", fontSize: "14px" }}>
+              ✓ Tip sent! ({tipAmount} pathUSD)
+            </p>
+            <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: "10px", wordBreak: "break-all" }}>
+              Tx: {tipResult.txHash?.slice(0, 20)}...
+            </p>
+          </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: "12px" }}>
+              <label style={{ display: "block", color: "rgba(255,255,255,0.7)", fontSize: "12px", marginBottom: "6px" }}>
+                Tip Amount (pathUSD)
+              </label>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {[1, 5, 10, 25].map(amt => (
+                  <button
+                    key={amt}
+                    onClick={() => setTipAmount(amt)}
+                    style={{
+                      flex: 1,
+                      padding: "8px",
+                      background: tipAmount === amt ? "rgba(139, 92, 246, 0.3)" : "rgba(255,255,255,0.05)",
+                      border: tipAmount === amt ? "1px solid #8b5cf6" : "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: "6px",
+                      color: tipAmount === amt ? "#a78bfa" : "rgba(255,255,255,0.7)",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                    }}
+                  >
+                    {amt}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={handleTip}
+              disabled={tipping || !onTip}
+              style={{
+                width: "100%",
+                padding: "12px",
+                background: tipping ? "rgba(139, 92, 246, 0.5)" : "linear-gradient(135deg, #8b5cf6, #6366f1)",
+                border: "none",
+                borderRadius: "8px",
+                color: "white",
+                fontWeight: "bold",
+                cursor: tipping ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+              }}
+            >
+              {tipping ? <Loader2 size={16} className="animate-spin" /> : <DollarSign size={16} />}
+              {tipping ? "Sending..." : `Tip ${tipAmount} pathUSD`}
+            </button>
+            {tipResult?.error && (
+              <p style={{ color: "#ef4444", fontSize: "12px", marginTop: "8px" }}>
+                Error: {tipResult.error}
+              </p>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

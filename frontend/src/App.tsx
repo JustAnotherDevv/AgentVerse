@@ -199,6 +199,7 @@ export default function App() {
     sendMessage, 
     createTask,
     fetchTasks,
+    tipAgent,
   } = useAgentSystem();
 
   useEffect(() => {
@@ -329,6 +330,7 @@ export default function App() {
         agent={selectedAgent}
         open={panelOpen}
         onClose={() => setPanelOpen(false)}
+        onTip={tipAgent}
       />
 
       {taskMarketplaceOpen && (

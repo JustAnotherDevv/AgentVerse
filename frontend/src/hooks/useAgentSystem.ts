@@ -252,6 +252,22 @@ export function useAgentSystem(agentUrl: string = "http://localhost:3000") {
     return data;
   }, [agentUrl]);
 
+  const tipAgent = useCallback(async (agentId: string, amount: number) => {
+    const res = await fetch(`${agentUrl}/tip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId, amount })
+    });
+    const data = await res.json();
+    return data;
+  }, [agentUrl]);
+
+  const getBalance = useCallback(async (address: string) => {
+    const res = await fetch(`${agentUrl}/balance/${address}`);
+    const data = await res.json();
+    return data;
+  }, [agentUrl]);
+
   return {
     agents,
     connected,
@@ -264,6 +280,8 @@ export function useAgentSystem(agentUrl: string = "http://localhost:3000") {
     createTask,
     acceptTask,
     completeTask,
+    tipAgent,
+    getBalance,
     socket
   };
 }
