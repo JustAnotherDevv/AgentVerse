@@ -13,16 +13,18 @@ import {
   WebSocketMessage, DEFAULT_AGENTS, Task, Transaction
 } from './types.js';
 import { BehaviorEngine } from './behaviors.js';
+import { predictionEngine } from './predictionEngine.js';
+import { btcPriceService } from './btcPrice.js';
 
 dotenv.config();
 
 const TEMPO_CHAIN = {
-  id: 42431,
-  name: 'Tempo Testnet (Moderato)',
-  nativeCurrency: { name: 'TEMPO', symbol: 'TEMPO', decimals: 18 },
+  id: 31337,
+  name: 'Local Anvil',
+  nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://rpc.moderato.tempo.xyz'] },
-    public: { http: ['https://rpc.moderato.tempo.xyz'] },
+    default: { http: [process.env.TEMPO_RPC || 'http://localhost:8545'] },
+    public: { http: [process.env.TEMPO_RPC || 'http://localhost:8545'] },
   },
 };
 
@@ -34,7 +36,7 @@ const ERC20_ABI = [
   { name: 'approve', type: 'function', inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }], stateMutability: 'nonpayable' },
 ];
 
-const PATHUSD_ADDRESS = '0x20c0000000000000000000000000000000000000' as const;
+const PATHUSD_ADDRESS = process.env.USDC_ADDRESS as string || '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const;
 
 class DatabaseManager {
   private db: Database.Database;
@@ -86,55 +88,36 @@ class DatabaseManager {
         lastMessageAt INTEGER
       );
 
-      CREATE TABLE IF NOT EXISTS messages (
+      CREATE TABLE IF NOT EXISTS predictions (
         id TEXT PRIMARY KEY,
-        conversationId TEXT NOT NULL,
-        role TEXT NOT NULL,
-        content TEXT NOT NULL,
-        identity TEXT,
-        metadata TEXT,
-        createdAt INTEGER
-      );
-
-      CREATE TABLE IF NOT EXISTS facts (
-        id TEXT PRIMARY KEY,
-        content TEXT NOT NULL,
-        identityId TEXT,
-        confidence REAL DEFAULT 1.0,
-        createdAt INTEGER
-      );
-
-      CREATE TABLE IF NOT EXISTS tasks (
-        id TEXT PRIMARY KEY,
-        creatorId TEXT,
-        creatorType TEXT,
-        agentId TEXT,
-        type TEXT,
-        description TEXT,
-        reward INTEGER,
-        requiredSkill TEXT,
-        status TEXT DEFAULT 'open',
-        proof TEXT,
+        round INTEGER NOT NULL,
+        agentId TEXT NOT NULL,
+        predictedPrice REAL NOT NULL,
+        actualPrice REAL,
+        isCorrect INTEGER,
+        voteWeight INTEGER DEFAULT 1,
         createdAt INTEGER,
-        completedAt INTEGER
+        resolvedAt INTEGER
       );
 
-      CREATE TABLE IF NOT EXISTS transactions (
+      CREATE TABLE IF NOT EXISTS dao_votes (
         id TEXT PRIMARY KEY,
-        fromType TEXT,
-        fromId TEXT,
-        toType TEXT,
-        toId TEXT,
-        amount INTEGER,
-        type TEXT,
+        agentId TEXT NOT NULL,
+        proposalId TEXT NOT NULL,
+        vote TEXT NOT NULL,
+        weight INTEGER DEFAULT 1,
         createdAt INTEGER
       );
-
-      CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversationId);
-      CREATE INDEX IF NOT EXISTS idx_conversations_agent ON conversations(agentId);
-      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-      CREATE INDEX IF NOT EXISTS idx_tasks_agent ON tasks(agentId);
     `);
+
+    const columns = this.db.prepare('PRAGMA table_info(agents)').all() as any[];
+    const columnNames = columns.map(c => c.name);
+    if (!columnNames.includes('stats')) {
+      this.db.exec(`ALTER TABLE agents ADD COLUMN stats TEXT`);
+    }
+    if (!columnNames.includes('behaviors')) {
+      this.db.exec(`ALTER TABLE agents ADD COLUMN behaviors TEXT`);
+    }
   }
 
   getAgents(): AgentConfig[] {
@@ -415,6 +398,65 @@ class DatabaseManager {
     }));
   }
 
+  addPrediction(prediction: { id: string; round: number; agentId: string; predictedPrice: number }): void {
+    this.db.prepare(`
+      INSERT INTO predictions (id, round, agentId, predictedPrice, createdAt)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(prediction.id, prediction.round, prediction.agentId, prediction.predictedPrice, Date.now());
+  }
+
+  resolvePredictions(round: number, actualPrice: number): { agentId: string; isCorrect: boolean; voteWeight: number }[] {
+    const predictions = this.db.prepare('SELECT * FROM predictions WHERE round = ? AND actualPrice IS NULL').all(round) as any[];
+    const results: { agentId: string; isCorrect: boolean; voteWeight: number }[] = [];
+
+    for (const pred of predictions) {
+      const isCorrect = Math.abs(pred.predictedPrice - actualPrice) / actualPrice < 0.02;
+      const voteWeight = isCorrect ? 2 : 1;
+      
+      this.db.prepare('UPDATE predictions SET actualPrice = ?, isCorrect = ?, voteWeight = ?, resolvedAt = ? WHERE id = ?')
+        .run(actualPrice, isCorrect ? 1 : 0, voteWeight, Date.now(), pred.id);
+      
+      results.push({ agentId: pred.agentId, isCorrect, voteWeight });
+    }
+    return results;
+  }
+
+  getAgentVoteWeight(agentId: string): number {
+    const row = this.db.prepare(`
+      SELECT SUM(voteWeight) as totalWeight FROM predictions 
+      WHERE agentId = ? AND isCorrect = 1
+    `).get(agentId) as any;
+    return (row?.totalWeight || 0) + 1;
+  }
+
+  getAgentCorrectPredictions(agentId: string): number {
+    const row = this.db.prepare(`
+      SELECT COUNT(*) as count FROM predictions 
+      WHERE agentId = ? AND isCorrect = 1
+    `).get(agentId) as any;
+    return row?.count || 0;
+  }
+
+  getRoundPredictions(round: number): any[] {
+    return this.db.prepare('SELECT * FROM predictions WHERE round = ?').all(round);
+  }
+
+  getCurrentRound(): number {
+    const ROUND_DURATION = 5 * 60 * 1000;
+    return Math.floor(Date.now() / ROUND_DURATION);
+  }
+
+  addVote(vote: { id: string; agentId: string; proposalId: string; vote: string; weight: number }): void {
+    this.db.prepare(`
+      INSERT INTO dao_votes (id, agentId, proposalId, vote, weight, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(vote.id, vote.agentId, vote.proposalId, vote.vote, vote.weight, Date.now());
+  }
+
+  getVotes(proposalId: string): any[] {
+    return this.db.prepare('SELECT * FROM dao_votes WHERE proposalId = ?').all(proposalId);
+  }
+
   close(): void {
     this.db.close();
   }
@@ -468,8 +510,64 @@ class MultiAgentSystem {
         runtime.isMoving = true;
       }
     };
+
+    const transferToAgentFn = async (fromAgentId: string, toAgentId: string, amount: number) => {
+      try {
+        const fromAgent = this.db.getAgent(fromAgentId);
+        const toAgent = this.db.getAgent(toAgentId);
+        
+        if (!fromAgent || !fromAgent.privateKey) {
+          return { success: false, error: 'Sender not found' };
+        }
+        
+        if (!toAgent || !toAgent.walletAddress) {
+          return { success: false, error: 'Recipient not found' };
+        }
+
+        const account = privateKeyToAccount(fromAgent.privateKey as `0x${string}`);
+        
+        const walletClient = createWalletClient({
+          account,
+          chain: TEMPO_CHAIN,
+          transport: http(this.env.TEMPO_RPC),
+        });
+
+        const publicClient = createPublicClient({
+          chain: TEMPO_CHAIN,
+          transport: http(this.env.TEMPO_RPC),
+        });
+
+        const decimals = await publicClient.readContract({
+          address: PATHUSD_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'decimals',
+        }) as number;
+
+        const amountRaw = BigInt(amount * Math.pow(10, decimals));
+
+        const hash = await walletClient.writeContract({
+          address: PATHUSD_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'transfer',
+          args: [toAgent.walletAddress as `0x${string}`, amountRaw],
+        });
+
+        this.broadcast('agent_transfer', {
+          fromAgentId,
+          fromAgentName: fromAgent.name,
+          toAgentId,
+          toAgentName: toAgent.name,
+          amount,
+          txHash: hash,
+        });
+
+        return { success: true, txHash: hash };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    };
     
-    this.behaviorEngine = new BehaviorEngine(getAllAgentsFn, getNearbyAgentsFn, stopMovingFn, resumeMovingFn);
+    this.behaviorEngine = new BehaviorEngine(getAllAgentsFn, getNearbyAgentsFn, stopMovingFn, resumeMovingFn, transferToAgentFn);
     this.initDb();
     this.setupRoutes();
     this.setupWebSocket();
@@ -485,6 +583,7 @@ class MultiAgentSystem {
       HEARTBEAT_INTERVAL: parseInt(process.env.HEARTBEAT_INTERVAL || '60000'),
       MAX_TX_VALUE: process.env.MAX_TX_VALUE || '10',
       WS_PORT: parseInt(process.env.WS_PORT || '3001'),
+      TASK_FUND_WALLET: process.env.TASK_FUND_WALLET || process.env.PRIVATE_KEY ? '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' : '',
     };
   }
 
@@ -558,7 +657,36 @@ class MultiAgentSystem {
 
     this.app.get('/agents', async (req, res) => {
       const agents = this.db.getAgents();
-      res.json({ agents });
+      
+      const publicClient = createPublicClient({
+        chain: TEMPO_CHAIN,
+        transport: http(this.env.TEMPO_RPC),
+      });
+      const decimals = await publicClient.readContract({
+        address: PATHUSD_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: 'decimals',
+      }) as number;
+
+      const agentsWithBalance = await Promise.all(agents.map(async (agent) => {
+        let balanceUSDC = 0;
+        if (agent.walletAddress) {
+          try {
+            const balanceRaw = await publicClient.readContract({
+              address: PATHUSD_ADDRESS,
+              abi: ERC20_ABI,
+              functionName: 'balanceOf',
+              args: [agent.walletAddress as `0x${string}`],
+            }) as bigint;
+            balanceUSDC = Number(balanceRaw) / Math.pow(10, decimals);
+          } catch (err) {
+            console.error(`Failed to fetch balance for ${agent.name}:`, err);
+          }
+        }
+        return { ...agent, balanceUSDC };
+      }));
+
+      res.json({ agents: agentsWithBalance });
     });
 
     this.app.post('/agents', async (req, res) => {
@@ -609,7 +737,32 @@ class MultiAgentSystem {
         res.status(404).json({ error: 'Agent not found' });
         return;
       }
-      res.json({ agent });
+
+      let balanceUSDC = '0';
+      if (agent.walletAddress) {
+        try {
+          const publicClient = createPublicClient({
+            chain: TEMPO_CHAIN,
+            transport: http(this.env.TEMPO_RPC),
+          });
+          const decimals = await publicClient.readContract({
+            address: PATHUSD_ADDRESS,
+            abi: ERC20_ABI,
+            functionName: 'decimals',
+          }) as number;
+          const balanceRaw = await publicClient.readContract({
+            address: PATHUSD_ADDRESS,
+            abi: ERC20_ABI,
+            functionName: 'balanceOf',
+            args: [agent.walletAddress as `0x${string}`],
+          }) as bigint;
+          balanceUSDC = (Number(balanceRaw) / Math.pow(10, decimals)).toFixed(2);
+        } catch (err) {
+          console.error('Failed to fetch agent balance:', err);
+        }
+      }
+
+      res.json({ agent, balanceUSDC: parseFloat(balanceUSDC) });
     });
 
     this.app.put('/agents/:id', async (req, res) => {
@@ -722,7 +875,41 @@ class MultiAgentSystem {
 
     this.app.post('/tasks', async (req, res) => {
       try {
-        const { type, description, reward, requiredSkill, creatorId, creatorType } = req.body;
+        const { type, description, reward, requiredSkill, creatorId, creatorType, fundTask } = req.body;
+        
+        let taskReward = reward || 0;
+        
+        if (fundTask && taskReward > 0) {
+          const senderPrivateKey = this.env.PRIVATE_KEY;
+          if (senderPrivateKey) {
+            const account = privateKeyToAccount(senderPrivateKey as `0x${string}`);
+            const walletClient = createWalletClient({
+              account,
+              chain: TEMPO_CHAIN,
+              transport: http(this.env.TEMPO_RPC),
+            });
+
+            const publicClient = createPublicClient({
+              chain: TEMPO_CHAIN,
+              transport: http(this.env.TEMPO_RPC),
+            });
+
+            const decimals = await publicClient.readContract({
+              address: PATHUSD_ADDRESS,
+              abi: ERC20_ABI,
+              functionName: 'decimals',
+            }) as number;
+
+            const amountRaw = BigInt(taskReward * Math.pow(10, decimals));
+
+            await walletClient.writeContract({
+              address: PATHUSD_ADDRESS,
+              abi: ERC20_ABI,
+              functionName: 'transfer',
+              args: [this.env.TASK_FUND_WALLET as `0x${string}`, amountRaw],
+            });
+          }
+        }
         
         const task: Task = {
           id: uuidv4(),
@@ -730,7 +917,7 @@ class MultiAgentSystem {
           creatorType: creatorType || 'human',
           type: type || 'assist',
           description: description || '',
-          reward: reward || 0,
+          reward: taskReward,
           requiredSkill: requiredSkill || null,
           status: 'open',
           createdAt: Date.now()
@@ -821,6 +1008,80 @@ class MultiAgentSystem {
       res.json({ transactions });
     });
 
+    this.app.post('/user-tip', async (req, res) => {
+      try {
+        const { agentId, amount } = req.body;
+        
+        const agent = this.db.getAgent(agentId);
+        if (!agent || !agent.walletAddress) {
+          res.status(404).json({ error: 'Agent not found or no wallet' });
+          return;
+        }
+
+        const senderPrivateKey = this.env.PRIVATE_KEY;
+        if (!senderPrivateKey) {
+          res.status(500).json({ error: 'User wallet not configured' });
+          return;
+        }
+
+        const account = privateKeyToAccount(senderPrivateKey as `0x${string}`);
+        
+        const walletClient = createWalletClient({
+          account,
+          chain: TEMPO_CHAIN,
+          transport: http(this.env.TEMPO_RPC),
+        });
+
+        const publicClient = createPublicClient({
+          chain: TEMPO_CHAIN,
+          transport: http(this.env.TEMPO_RPC),
+        });
+
+        const decimals = await publicClient.readContract({
+          address: PATHUSD_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'decimals',
+        }) as number;
+
+        const amountRaw = BigInt(amount * Math.pow(10, decimals));
+
+        const hash = await walletClient.writeContract({
+          address: PATHUSD_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'transfer',
+          args: [agent.walletAddress as `0x${string}`, amountRaw],
+        });
+
+        this.db.addTransaction({
+          id: uuidv4(),
+          fromType: 'human',
+          fromId: account.address,
+          toType: 'agent',
+          toId: agentId,
+          amount: amount,
+          type: 'tip',
+          createdAt: Date.now()
+        });
+
+        const agentStats = agent.stats;
+        agentStats.reputation = Math.min(100, agentStats.reputation + 1);
+        this.db.updateAgent(agentId, { stats: agentStats });
+
+        this.broadcast('agent_tipped', {
+          agentId,
+          agentName: agent.name,
+          amount,
+          txHash: hash,
+          from: account.address
+        });
+
+        res.json({ success: true, txHash: hash, amount });
+      } catch (error: any) {
+        console.error('Tip error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     this.app.post('/tip', async (req, res) => {
       try {
         const { agentId, amount } = req.body;
@@ -897,6 +1158,118 @@ class MultiAgentSystem {
       }
     });
 
+    this.app.post('/agent-transfer', async (req, res) => {
+      try {
+        const { fromAgentId, toAgentId, amount } = req.body;
+        
+        const fromAgent = this.db.getAgent(fromAgentId);
+        const toAgent = this.db.getAgent(toAgentId);
+        
+        if (!fromAgent || !fromAgent.privateKey || !fromAgent.walletAddress) {
+          res.status(404).json({ error: 'Sender agent not found or no wallet' });
+          return;
+        }
+        
+        if (!toAgent || !toAgent.walletAddress) {
+          res.status(404).json({ error: 'Recipient agent not found' });
+          return;
+        }
+
+        const account = privateKeyToAccount(fromAgent.privateKey as `0x${string}`);
+        
+        const walletClient = createWalletClient({
+          account,
+          chain: TEMPO_CHAIN,
+          transport: http(this.env.TEMPO_RPC),
+        });
+
+        const publicClient = createPublicClient({
+          chain: TEMPO_CHAIN,
+          transport: http(this.env.TEMPO_RPC),
+        });
+
+        const decimals = await publicClient.readContract({
+          address: PATHUSD_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'decimals',
+        }) as number;
+
+        const amountRaw = BigInt(amount * Math.pow(10, decimals));
+
+        const hash = await walletClient.writeContract({
+          address: PATHUSD_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'transfer',
+          args: [toAgent.walletAddress as `0x${string}`, amountRaw],
+        });
+
+        this.broadcast('agent_transfer', {
+          fromAgentId,
+          fromAgentName: fromAgent.name,
+          toAgentId,
+          toAgentName: toAgent.name,
+          amount,
+          txHash: hash,
+        });
+
+        res.json({ success: true, txHash: hash, amount });
+      } catch (error: any) {
+        console.error('Transfer error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    this.app.post('/fund-agent', async (req, res) => {
+      try {
+        const { agentId, amount } = req.body;
+        
+        const agent = this.db.getAgent(agentId);
+        if (!agent || !agent.walletAddress) {
+          res.status(404).json({ error: 'Agent not found or no wallet' });
+          return;
+        }
+
+        const senderPrivateKey = this.env.PRIVATE_KEY;
+        if (!senderPrivateKey) {
+          res.status(500).json({ error: 'Server wallet not configured' });
+          return;
+        }
+
+        const account = privateKeyToAccount(senderPrivateKey as `0x${string}`);
+        
+        const walletClient = createWalletClient({
+          account,
+          chain: TEMPO_CHAIN,
+          transport: http(this.env.TEMPO_RPC),
+        });
+
+        const publicClient = createPublicClient({
+          chain: TEMPO_CHAIN,
+          transport: http(this.env.TEMPO_RPC),
+        });
+
+        const decimals = await publicClient.readContract({
+          address: PATHUSD_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'decimals',
+        }) as number;
+
+        const amountRaw = BigInt(amount * Math.pow(10, decimals));
+
+        const hash = await walletClient.writeContract({
+          address: PATHUSD_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'transfer',
+          args: [agent.walletAddress as `0x${string}`, amountRaw],
+        });
+
+        res.json({ success: true, txHash: hash, amount });
+      } catch (error: any) {
+        console.error('Fund error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     this.app.get('/balance/:address', async (req, res) => {
       try {
         const { address } = req.params;
@@ -926,6 +1299,48 @@ class MultiAgentSystem {
       } catch (error: any) {
         res.status(500).json({ error: error.message });
       }
+    });
+
+    this.app.get('/governance/leaderboard', async (req, res) => {
+      const agents = this.db.getAgents();
+      const leaderboard = agents.map(agent => ({
+        id: agent.id,
+        name: agent.name,
+        avatar: agent.avatar,
+        voteWeight: this.db.getAgentVoteWeight(agent.id),
+        correctPredictions: this.db.getAgentCorrectPredictions(agent.id)
+      })).sort((a, b) => b.voteWeight - a.voteWeight);
+      
+      res.json({ leaderboard });
+    });
+
+    this.app.get('/governance/current-round', async (req, res) => {
+      const currentRound = this.db.getCurrentRound();
+      let predictions = this.db.getRoundPredictions(currentRound);
+      
+      if (predictions.length === 0) {
+        const prevRound = currentRound - 1;
+        predictions = this.db.getRoundPredictions(prevRound);
+      }
+      
+      const btcPrice = btcPriceService.getCurrentPrice();
+      
+      res.json({ 
+        round: currentRound, 
+        btcPrice,
+        predictions: predictions.map((p: any) => {
+          const agent = this.db.getAgent(p.agentId);
+          return {
+            ...p,
+            agentName: agent?.name || 'Unknown'
+          };
+        })
+      });
+    });
+
+    this.app.get('/governance/agent/:id/vote-weight', async (req, res) => {
+      const voteWeight = this.db.getAgentVoteWeight(req.params.id);
+      res.json({ agentId: req.params.id, voteWeight });
     });
   }
 
@@ -1069,6 +1484,84 @@ ${facts.slice(0, 5).map(f => `- ${f.content}`).join('\n') || 'None yet'}
     console.log(`🛑 Stopped agent: ${agentId}`);
   }
 
+  private startPredictionScheduler() {
+    const ROUND_DURATION = 5 * 60 * 1000;
+    let currentRound = this.db.getCurrentRound();
+    let resolvedRound = currentRound - 1;
+
+    console.log(`🎯 Prediction market started. Round: ${currentRound}`);
+
+    const makePredictions = async () => {
+      console.log(`\n🎯 Round ${currentRound} starting. Current BTC: $${btcPriceService.getCurrentPrice().toLocaleString()}`);
+      
+      const agents = this.db.getAgents();
+      console.log(`  Found ${agents.length} agents to make predictions`);
+      
+      for (const agent of agents) {
+        if (!agent.enabled) continue;
+        
+        try {
+          console.log(`  Making prediction for ${agent.name}...`);
+          const prediction = await predictionEngine.makePrediction(agent);
+          console.log(`  ${agent.name} predicted: $${prediction.predictedPrice.toLocaleString()} (${prediction.predictionDirection})`);
+          
+          this.db.addPrediction({
+            id: prediction.id,
+            round: currentRound,
+            agentId: agent.id,
+            predictedPrice: prediction.predictedPrice
+          });
+          
+          this.broadcast('prediction_made', {
+            round: currentRound,
+            agentId: agent.id,
+            agentName: agent.name,
+            predictedPrice: prediction.predictedPrice,
+            direction: prediction.predictionDirection,
+            reasoning: prediction.reasoning?.slice(0, 100)
+          });
+        } catch (err) {
+          console.error(`  ❌ Prediction failed for ${agent.name}:`, err);
+        }
+      }
+      console.log(`  Done making predictions`);
+    };
+
+    makePredictions();
+
+    setInterval(async () => {
+      const newRound = this.db.getCurrentRound();
+      
+      if (newRound > currentRound) {
+        const actualPrice = btcPriceService.getCurrentPrice();
+        console.log(`\n🔄 Round ${currentRound} ending. Actual price: $${actualPrice.toLocaleString()}`);
+        
+        const results = this.db.resolvePredictions(currentRound, actualPrice);
+        
+        for (const result of results) {
+          const agent = this.db.getAgent(result.agentId);
+          if (agent) {
+            const newWeight = this.db.getAgentVoteWeight(result.agentId);
+            console.log(`  ${agent.name}: ${result.isCorrect ? '✅' : '❌'} → Vote weight: ${newWeight}`);
+            
+            this.broadcast('prediction_resolved', {
+              round: currentRound,
+              agentId: result.agentId,
+              agentName: agent.name,
+              isCorrect: result.isCorrect,
+              voteWeight: newWeight,
+              actualPrice
+            });
+          }
+        }
+
+        resolvedRound = currentRound;
+        currentRound = newRound;
+        makePredictions();
+      }
+    }, 10000);
+  }
+
   async start() {
     const agents = this.db.getAgents();
     console.log(`\n🚀 Starting Multi-Agent System with ${agents.length} agents\n`);
@@ -1078,6 +1571,8 @@ ${facts.slice(0, 5).map(f => `- ${f.content}`).join('\n') || 'None yet'}
         await this.startAgent(agent);
       }
     }
+
+    this.startPredictionScheduler();
 
     this.httpServer.listen(this.env.PORT, () => {
       console.log(`

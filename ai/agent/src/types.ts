@@ -7,6 +7,7 @@ export interface Env {
   HEARTBEAT_INTERVAL: number;
   MAX_TX_VALUE: string;
   WS_PORT: number;
+  TASK_FUND_WALLET: string;
 }
 
 export interface AgentConfig {
@@ -128,6 +129,7 @@ export interface BehaviorContext {
   getAllAgents: () => AgentConfig[];
   stopMoving: (agentId: string) => void;
   resumeMoving: (agentId: string) => void;
+  transferToAgent: (fromAgentId: string, toAgentId: string, amount: number) => Promise<{ success: boolean; txHash?: string; error?: string }>;
 }
 
 export interface BehaviorResult {

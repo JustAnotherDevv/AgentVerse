@@ -4,3 +4,5 @@ export { GridGround } from "./GridGround";
 export { useCubeManager } from "./useCubeManager";
 export { AgentBean } from "./AgentBean";
 export { AgentChat } from "./AgentChat";
+export { Environment } from "./Environment";
+export { EnvironmentSimple } from "./EnvironmentSimple";

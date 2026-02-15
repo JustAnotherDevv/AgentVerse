@@ -7,12 +7,14 @@ export class BehaviorEngine {
   private context: BehaviorContext;
 
   constructor(getAllAgents: () => any[], getNearbyAgents: (agentId: string, maxDistance: number) => any[], 
-              stopMoving: (agentId: string) => void, resumeMoving: (agentId: string) => void) {
+              stopMoving: (agentId: string) => void, resumeMoving: (agentId: string) => void,
+              transferToAgent: (fromAgentId: string, toAgentId: string, amount: number) => Promise<{ success: boolean; txHash?: string; error?: string }>) {
     this.context = {
       getAllAgents,
       getNearbyAgents,
       stopMoving,
-      resumeMoving
+      resumeMoving,
+      transferToAgent
     };
     this.registerDefaultBehaviors();
   }
@@ -98,6 +100,40 @@ export class BehaviorEngine {
             message: greetings[Math.floor(Math.random() * greetings.length)],
             data: { type: 'greeting', targetId: other.id }
           };
+        }
+        
+        return { success: false, message: '' };
+      }
+    });
+
+    this.registerBehavior({
+      name: 'tipNearby',
+      description: 'Send a small tip to nearby agents when close',
+      execute: async (agent: RuntimeAgent, ctx: BehaviorContext): Promise<BehaviorResult> => {
+        if (!agent.walletClient || !agent.config.walletAddress) {
+          return { success: false, message: '' };
+        }
+        
+        const nearbyAgents = ctx.getNearbyAgents(agent.id, 3);
+        
+        if (nearbyAgents.length > 0 && Math.random() < 0.15) {
+          const other = nearbyAgents[0];
+          
+          const tipAmount = Math.floor(Math.random() * 5) + 1;
+          
+          try {
+            const result = await ctx.transferToAgent(agent.id, other.id, tipAmount);
+            
+            if (result.success) {
+              return {
+                success: true,
+                message: `Sent ${tipAmount} USDC to ${other.name}! 💰`,
+                data: { type: 'tip', targetId: other.id, amount: tipAmount, txHash: result.txHash }
+              };
+            }
+          } catch (e) {
+            return { success: false, message: '' };
+          }
         }
         
         return { success: false, message: '' };

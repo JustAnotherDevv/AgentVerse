@@ -18,6 +18,7 @@ export function AgentPanel({ agent, open = true, onClose, onTip }: AgentPanelPro
   if (!agent || !open) return null;
 
   const stats = agent.stats || { reputation: 50, totalEarnings: 0, tasksCompleted: 0, tasksFailed: 0, humansHelped: 0, cooperations: 0 };
+  const balance = agent.balanceUSDC ?? 0;
 
   const handleTip = async () => {
     if (!onTip || tipping) return;
@@ -122,6 +123,16 @@ export function AgentPanel({ agent, open = true, onClose, onTip }: AgentPanelPro
       <div style={{ padding: theme.spacing.sm }}>
         {activeTab === "stats" ? (
           <div style={{ display: "flex", flexDirection: "column", gap: theme.spacing.xs }}>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              padding: theme.spacing.xs,
+              border: `1px solid ${theme.colors.border.subtle}`,
+              background: theme.colors.background.tertiary,
+            }}>
+              <span style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.xs }}>BALANCE</span>
+              <span style={{ color: theme.colors.accent.primary, fontWeight: 700, fontSize: theme.fontSize.xs }}>{balance.toFixed(2)} USDC</span>
+            </div>
             {[
               { label: "REPUTATION", value: `${stats.reputation}%`, color: stats.reputation >= 70 ? theme.colors.accent.primary : stats.reputation >= 40 ? theme.colors.accent.warning : theme.colors.accent.error },
               { label: "EARNINGS", value: `${stats.totalEarnings} USDC`, color: theme.colors.accent.primary },

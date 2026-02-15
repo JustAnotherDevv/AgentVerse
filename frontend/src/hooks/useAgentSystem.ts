@@ -35,6 +35,7 @@ export interface Agent {
   };
   behaviors: any[];
   enabled: boolean;
+  balanceUSDC?: number;
 }
 
 export interface WebSocketMessage {
@@ -75,7 +76,7 @@ export interface Task {
   completedAt?: number;
 }
 
-export function useAgentSystem(agentUrl: string = "http://localhost:3000") {
+export function useAgentSystem(agentUrl: string = import.meta.env.VITE_AGENT_URL || "http://localhost:3000") {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [speakingAgents, setSpeakingAgents] = useState<Map<string, string>>(new Map());
@@ -262,6 +263,19 @@ export function useAgentSystem(agentUrl: string = "http://localhost:3000") {
     return data;
   }, [agentUrl]);
 
+  const userTipAgent = useCallback(async (agentId: string, amount: number) => {
+    const res = await fetch(`${agentUrl}/user-tip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId, amount })
+    });
+    const data = await res.json();
+    if (data.success) {
+      fetchAgents();
+    }
+    return data;
+  }, [agentUrl, fetchAgents]);
+
   const getBalance = useCallback(async (address: string) => {
     const res = await fetch(`${agentUrl}/balance/${address}`);
     const data = await res.json();
@@ -281,6 +295,7 @@ export function useAgentSystem(agentUrl: string = "http://localhost:3000") {
     acceptTask,
     completeTask,
     tipAgent,
+    userTipAgent,
     getBalance,
     socket
   };

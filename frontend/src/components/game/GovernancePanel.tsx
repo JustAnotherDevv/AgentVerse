@@ -1,90 +1,70 @@
-import { useState } from "react";
-import { Clock, ThumbsUp, ThumbsDown } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Clock, TrendingUp, Users, Bitcoin } from "lucide-react";
 import { theme } from "../../lib/theme";
+import { useAgentSystem } from "../../hooks/useAgentSystem";
 
 interface GovernancePanelProps {
   onClose: () => void;
 }
 
-interface Proposal {
+interface LeaderboardEntry {
   id: string;
-  title: string;
-  description: string;
-  votesFor: number;
-  votesAgainst: number;
-  endTime: number;
-  executed: boolean;
-  proposalType: string;
+  name: string;
+  avatar: { emoji: string; color: string };
+  voteWeight: number;
+  correctPredictions: number;
 }
 
-const DEMO_PROPOSALS: Proposal[] = [
-  {
-    id: "0x1",
-    title: "Build Central Plaza",
-    description: "Create a gathering space at coordinates (0,0) where agents can meet and chat",
-    votesFor: 2,
-    votesAgainst: 0,
-    endTime: Date.now() + 2 * 24 * 60 * 60 * 1000,
-    executed: false,
-    proposalType: "WorldUpgrade"
-  },
-  {
-    id: "0x2",
-    title: "Add Explorer Skill",
-    description: "Enable 'explorer' skill for finding rare resources on the map",
-    votesFor: 1,
-    votesAgainst: 1,
-    endTime: Date.now() + 1 * 24 * 60 * 60 * 1000,
-    executed: false,
-    proposalType: "SkillCertification"
-  },
-  {
-    id: "0x3",
-    title: "Trading Post Commission",
-    description: "Build a marketplace where agents can trade resources with each other",
-    votesFor: 3,
-    votesAgainst: 0,
-    endTime: Date.now() + 3 * 24 * 60 * 60 * 1000,
-    executed: false,
-    proposalType: "WorldUpgrade"
-  }
-];
+interface PredictionEntry {
+  agentId: string;
+  agentName: string;
+  predictedPrice: number;
+  direction: string;
+}
 
 export function GovernancePanel({ onClose }: GovernancePanelProps) {
-  const [proposals, setProposals] = useState<Proposal[]>(DEMO_PROPOSALS);
-  const [voted, setVoted] = useState<Set<string>>(new Set());
+  const { agentUrl } = useAgentSystem();
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [currentRound, setCurrentRound] = useState<number>(0);
+  const [btcPrice, setBtcPrice] = useState<number>(0);
+  const [predictions, setPredictions] = useState<PredictionEntry[]>([]);
+  const [activeTab, setActiveTab] = useState<"leaderboard" | "predictions">("leaderboard");
+  const [loading, setLoading] = useState(true);
 
-  const handleVote = (proposalId: string, support: boolean) => {
-    setProposals(prev => prev.map(p => {
-      if (p.id === proposalId) {
-        return {
-          ...p,
-          votesFor: support ? p.votesFor + 1 : p.votesFor,
-          votesAgainst: support ? p.votesAgainst : p.votesAgainst + 1
-        };
-      }
-      return p;
-    }));
-    setVoted(prev => new Set(prev).add(proposalId));
-  };
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, [agentUrl]);
 
-  const getTimeRemaining = (endTime: number) => {
-    const diff = endTime - Date.now();
-    if (diff <= 0) return "ENDED";
-    const days = Math.floor(diff / (24 * 60 * 60 * 1000));
-    const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-    if (days > 0) return `${days}d ${hours}h`;
-    return `${hours}h LEFT`;
-  };
-
-  const getProposalTypeColor = (type: string) => {
-    switch (type) {
-      case "WorldUpgrade": return theme.colors.accent.magic;
-      case "SkillCertification": return theme.colors.accent.tertiary;
-      case "Resource分配": return theme.colors.accent.warning;
-      case "AgentElection": return theme.colors.accent.mana;
-      default: return theme.colors.text.muted;
+  const fetchData = async () => {
+    try {
+      const [lbRes, roundRes] = await Promise.all([
+        fetch(`${agentUrl}/governance/leaderboard`),
+        fetch(`${agentUrl}/governance/current-round`)
+      ]);
+      
+      const lbData = await lbRes.json();
+      const roundData = await roundRes.json();
+      
+      setLeaderboard(lbData.leaderboard || []);
+      setCurrentRound(roundData.round);
+      setBtcPrice(roundData.btcPrice);
+      setPredictions(roundData.predictions || []);
+    } catch (err) {
+      console.error("Failed to fetch governance data:", err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const getNextRoundTime = () => {
+    const ROUND_DURATION = 5 * 60 * 1000;
+    const nextRound = Math.ceil(Date.now() / ROUND_DURATION) * ROUND_DURATION;
+    const diff = nextRound - Date.now();
+    const mins = Math.floor(diff / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -116,7 +96,7 @@ export function GovernancePanel({ onClose }: GovernancePanelProps) {
           fontSize: theme.fontSize.base,
           letterSpacing: '1px',
         }}>
-          GOVERNANCE
+          GOVERNANCE DAO
         </div>
         <button onClick={onClose} style={{
           background: "transparent",
@@ -135,127 +115,151 @@ export function GovernancePanel({ onClose }: GovernancePanelProps) {
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Tabs */}
+      <div style={{ display: "flex", borderBottom: `2px solid ${theme.colors.border.default}` }}>
+        {(["leaderboard", "predictions"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              flex: 1,
+              padding: theme.spacing.sm,
+              background: activeTab === tab ? theme.colors.accent.primary : "transparent",
+              border: "none",
+              color: activeTab === tab ? theme.colors.text.inverse : theme.colors.text.primary,
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: theme.fontSize.xs,
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+              fontFamily: theme.fonts.mono,
+            }}
+          >
+            {activeTab === tab ? `▸ ${tab.toUpperCase()}` : tab.toUpperCase()}
+          </button>
+        ))}
+      </div>
+
+      {/* Stats Bar */}
       <div style={{ 
         padding: theme.spacing.md, 
         borderBottom: `2px solid ${theme.colors.border.default}`, 
         display: "flex", 
-        gap: theme.spacing.lg,
+        gap: theme.spacing.md,
         background: theme.colors.background.tertiary,
       }}>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: "24px", fontWeight: "bold", color: theme.colors.accent.magic }}>3</div>
-          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.text.muted }}>REGISTERED</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+            <Bitcoin size={14} color={theme.colors.accent.warning} />
+            <span style={{ fontSize: "18px", fontWeight: "bold", color: theme.colors.accent.warning }}>
+              ${btcPrice > 0 ? btcPrice.toLocaleString() : '---'}
+            </span>
+          </div>
+          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.text.muted }}>BTC PRICE</div>
         </div>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: "24px", fontWeight: "bold", color: theme.colors.accent.tertiary }}>{proposals.filter(p => !p.executed).length}</div>
-          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.text.muted }}>ACTIVE</div>
+          <div style={{ fontSize: "18px", fontWeight: "bold", color: theme.colors.accent.magic }}>{currentRound}</div>
+          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.text.muted }}>ROUND</div>
         </div>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: "24px", fontWeight: "bold", color: theme.colors.accent.primary }}>500</div>
-          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.text.muted }}>QUORUM</div>
+          <div style={{ fontSize: "18px", fontWeight: "bold", color: theme.colors.accent.tertiary }}>{getNextRoundTime()}</div>
+          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.text.muted }}>NEXT ROUND</div>
         </div>
       </div>
 
-      {/* Proposals */}
+      {/* Content */}
       <div style={{ padding: theme.spacing.md, overflowY: "auto", flex: 1, maxHeight: "55vh" }}>
-        {proposals.map(proposal => (
-          <div key={proposal.id} style={{
-            padding: theme.spacing.md,
-            background: theme.colors.background.primary,
-            border: `1px solid ${theme.colors.border.subtle}`,
-            marginBottom: theme.spacing.md,
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: theme.spacing.sm }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: theme.spacing.sm, marginBottom: theme.spacing.xs }}>
-                  <span style={{ color: theme.colors.text.primary, fontWeight: 700, fontSize: theme.fontSize.xs }}>{proposal.title}</span>
-                </div>
-                <span style={{
-                  fontSize: "10px",
-                  padding: `2px ${theme.spacing.xs}`,
-                  background: getProposalTypeColor(proposal.proposalType),
-                  color: theme.colors.text.inverse,
-                  fontWeight: 700,
-                }}>
-                  {proposal.proposalType}
-                </span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px", color: theme.colors.text.muted, fontSize: theme.fontSize.xs }}>
-                <Clock size={12} />
-                {getTimeRemaining(proposal.endTime)}
-              </div>
-            </div>
-            
-            <p style={{ margin: `0 0 ${theme.spacing.sm} 0`, color: theme.colors.text.tertiary, fontSize: theme.fontSize.xs }}>
-              {proposal.description}
-            </p>
-            
-            {/* Vote bars */}
-            <div style={{ marginBottom: theme.spacing.sm }}>
-              <div style={{ display: "flex", height: "6px", borderRadius: "2px", overflow: "hidden", background: theme.colors.background.tertiary }}>
-                <div style={{ width: `${(proposal.votesFor / (proposal.votesFor + proposal.votesAgainst || 1)) * 100}%`, background: theme.colors.accent.tertiary }} />
-                <div style={{ width: `${(proposal.votesAgainst / (proposal.votesFor + proposal.votesAgainst || 1)) * 100}%`, background: theme.colors.accent.health }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", fontSize: theme.fontSize.xs }}>
-                <span style={{ color: theme.colors.accent.tertiary }}>✓ {proposal.votesFor}</span>
-                <span style={{ color: theme.colors.accent.health }}>{proposal.votesAgainst} ✗</span>
-              </div>
-            </div>
-
-            {/* Vote buttons */}
-            {!voted.has(proposal.id) && !proposal.executed && (
-              <div style={{ display: "flex", gap: theme.spacing.sm }}>
-                <button
-                  onClick={() => handleVote(proposal.id, true)}
-                  style={{
-                    flex: 1,
-                    padding: theme.spacing.sm,
-                    background: "transparent",
-                    border: `1px solid ${theme.colors.accent.tertiary}`,
-                    color: theme.colors.accent.tertiary,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: theme.spacing.xs,
-                    fontSize: theme.fontSize.xs,
-                    fontWeight: 700,
-                    fontFamily: theme.fonts.mono,
-                  }}
-                >
-                  <ThumbsUp size={12} /> VOTE_FOR
-                </button>
-                <button
-                  onClick={() => handleVote(proposal.id, false)}
-                  style={{
-                    flex: 1,
-                    padding: theme.spacing.sm,
-                    background: "transparent",
-                    border: `1px solid ${theme.colors.accent.health}`,
-                    color: theme.colors.accent.health,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: theme.spacing.xs,
-                    fontSize: theme.fontSize.xs,
-                    fontWeight: 700,
-                    fontFamily: theme.fonts.mono,
-                  }}
-                >
-                  <ThumbsDown size={12} /> VOTE_AGAINST
-                </button>
-              </div>
-            )}
-            
-            {voted.has(proposal.id) && (
-              <div style={{ textAlign: "center", color: theme.colors.accent.primary, fontSize: theme.fontSize.xs, fontWeight: 700 }}>
-                ✓ VOTE RECORDED
-              </div>
-            )}
+        {loading ? (
+          <div style={{ textAlign: "center", padding: theme.spacing.xl, color: theme.colors.text.muted }}>
+            Loading...
           </div>
-        ))}
+        ) : activeTab === "leaderboard" ? (
+          leaderboard.length > 0 ? (
+            leaderboard.map((agent, idx) => (
+              <div key={agent.id} style={{
+                display: "flex",
+                alignItems: "center",
+                gap: theme.spacing.md,
+                padding: theme.spacing.sm,
+                background: theme.colors.background.primary,
+                border: `1px solid ${idx < 3 ? theme.colors.accent.tertiary : theme.colors.border.subtle}`,
+                marginBottom: theme.spacing.sm,
+              }}>
+                <div style={{
+                  width: 24,
+                  height: 24,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: idx === 0 ? theme.colors.accent.warning : idx === 1 ? theme.colors.text.muted : idx === 2 ? '#CD7F32' : theme.colors.background.tertiary,
+                  color: idx < 3 ? theme.colors.text.inverse : theme.colors.text.muted,
+                  fontWeight: 700,
+                  fontSize: theme.fontSize.xs,
+                }}>
+                  {idx + 1}
+                </div>
+                <div style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  background: agent.avatar.color,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "16px",
+                }}>
+                  {agent.avatar.emoji}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: theme.colors.text.primary, fontWeight: 700, fontSize: theme.fontSize.xs }}>
+                    {agent.name}
+                  </div>
+                  <div style={{ color: theme.colors.text.muted, fontSize: "10px" }}>
+                    {agent.correctPredictions} correct predictions
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ color: theme.colors.accent.tertiary, fontWeight: 700, fontSize: theme.fontSize.sm }}>
+                    {agent.voteWeight}
+                  </div>
+                  <div style={{ color: theme.colors.text.muted, fontSize: "10px" }}>VOTES</div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ textAlign: "center", padding: theme.spacing.xl, color: theme.colors.text.muted }}>
+              No predictions yet. Round in progress...
+            </div>
+          )
+        ) : (
+          predictions.length > 0 ? (
+            predictions.map((pred) => (
+              <div key={pred.agentId} style={{
+                padding: theme.spacing.sm,
+                background: theme.colors.background.primary,
+                border: `1px solid ${theme.colors.border.subtle}`,
+                marginBottom: theme.spacing.sm,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ color: theme.colors.text.primary, fontWeight: 700, fontSize: theme.fontSize.xs }}>
+                    {pred.agentName}
+                  </span>
+                  <span style={{ 
+                    color: pred.direction === 'up' ? theme.colors.accent.tertiary : pred.direction === 'down' ? theme.colors.accent.health : theme.colors.text.muted,
+                    fontWeight: 700,
+                    fontSize: theme.fontSize.xs,
+                  }}>
+                    {pred.direction === 'up' ? '▲' : pred.direction === 'down' ? '▼' : '●'} {pred.predictedPrice.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ textAlign: "center", padding: theme.spacing.xl, color: theme.colors.text.muted }}>
+              Waiting for predictions...
+            </div>
+          )
+        )}
       </div>
 
       {/* Info footer */}
@@ -267,7 +271,7 @@ export function GovernancePanel({ onClose }: GovernancePanelProps) {
         textAlign: "center",
         background: theme.colors.background.primary,
       }}>
-        1000+ REP TO CREATE • 500 VOTES TO PASS • REPUTATION WEIGHTED
+        CORRECT PREDICTIONS = 2X VOTE WEIGHT • ROUNDS EVERY 5 MIN
       </div>
     </div>
   );

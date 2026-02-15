@@ -1,7 +1,7 @@
 import { Canvas, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
-import { Cube, GridGround, useCubeManager, AgentBean } from "./components/game";
+import { Cube, GridGround, useCubeManager, AgentBean, EnvironmentSimple } from "./components/game";
 import { AgentChat } from "./components/game/AgentChat";
 import { WorldChat } from "./components/game/WorldChat";
 import { AgentPanel } from "./components/game/AgentPanel";
@@ -27,8 +27,19 @@ const mouse = { x: 0, y: 0, wheel: 0 };
 
 function useInput() {
   useEffect(() => {
-    const down = (e: KeyboardEvent) => (keys[e.code] = true);
-    const up = (e: KeyboardEvent) => (keys[e.code] = false);
+    const isTyping = () => {
+      const active = document.activeElement;
+      return active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA' || (active as any)?.isContentEditable;
+    };
+
+    const down = (e: KeyboardEvent) => {
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'].includes(e.code) && isTyping()) return;
+      keys[e.code] = true;
+    };
+    const up = (e: KeyboardEvent) => {
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'].includes(e.code) && isTyping()) return;
+      keys[e.code] = false;
+    };
 
     const move = (e: MouseEvent) => {
       mouse.x = e.clientX;
@@ -53,7 +64,7 @@ function useInput() {
   }, []);
 }
 
-function RTSController() {
+function RTSController({ disabled = false }) {
   const { camera, size } = useThree();
 
   const target = useRef(new THREE.Vector3(0, 0, 0));
@@ -67,11 +78,12 @@ function RTSController() {
 
   useEffect(() => {
     const interval = setInterval(() => {
+      if (disabled) return;
       if (keys["KeyQ"]) yaw.current += rotateSpeed * 0.016;
       if (keys["KeyE"]) yaw.current -= rotateSpeed * 0.016;
     }, 16);
     return () => clearInterval(interval);
-  }, []);
+  }, [disabled]);
 
   useEffect(() => {
     let animationId: number;
@@ -82,8 +94,8 @@ function RTSController() {
       zoom.current = THREE.MathUtils.clamp(zoom.current, 8, 200);
       mouse.wheel = 0;
 
-      const forward = (keys["KeyW"] ? 1 : 0) - (keys["KeyS"] ? 1 : 0);
-      const right = (keys["KeyD"] ? 1 : 0) - (keys["KeyA"] ? 1 : 0);
+      const forward = disabled ? 0 : (keys["KeyW"] ? 1 : 0) - (keys["KeyS"] ? 1 : 0);
+      const right = disabled ? 0 : (keys["KeyD"] ? 1 : 0) - (keys["KeyA"] ? 1 : 0);
 
       const forwardDir = new THREE.Vector3(
         Math.sin(yaw.current),
@@ -100,14 +112,16 @@ function RTSController() {
       target.current.add(forwardDir.multiplyScalar(forward * panSpeed * 0.016));
       target.current.add(rightDir.multiplyScalar(right * panSpeed * 0.016));
 
-      if (mouse.x < edgeSize)
-        target.current.add(rightDir.clone().multiplyScalar(panSpeed * 0.016));
-      if (mouse.x > size.width - edgeSize)
-        target.current.add(rightDir.clone().multiplyScalar(-panSpeed * 0.016));
-      if (mouse.y < edgeSize)
-        target.current.add(forwardDir.clone().multiplyScalar(panSpeed * 0.016));
-      if (mouse.y > size.height - edgeSize)
-        target.current.add(forwardDir.clone().multiplyScalar(-panSpeed * 0.016));
+      if (!disabled) {
+        if (mouse.x < edgeSize)
+          target.current.add(rightDir.clone().multiplyScalar(panSpeed * 0.016));
+        if (mouse.x > size.width - edgeSize)
+          target.current.add(rightDir.clone().multiplyScalar(-panSpeed * 0.016));
+        if (mouse.y < edgeSize)
+          target.current.add(forwardDir.clone().multiplyScalar(panSpeed * 0.016));
+        if (mouse.y > size.height - edgeSize)
+          target.current.add(forwardDir.clone().multiplyScalar(-panSpeed * 0.016));
+      }
 
       const height = zoom.current;
       const distance = zoom.current * 0.9;
@@ -137,9 +151,11 @@ function RTSController() {
 function Game({ 
   onAgentClick, 
   agents, 
+  chatOpen,
 }: { 
   onAgentClick: (agent: Agent) => void;
   agents: Agent[];
+  chatOpen?: boolean;
 }) {
   const { cubes, addCube, handlePositionChange, getOtherCubePositions, chattingCubes } = useCubeManager();
 
@@ -152,7 +168,7 @@ function Game({
   return (
     <>
       <RTSController />
-      <GridGround onPlaneClick={handlePlaneClick} />
+      <GridGround onPlaneClick={chatOpen ? undefined : handlePlaneClick} />
 
       {/* Agent Beans */}
       {agents.map(agent => (
@@ -367,12 +383,26 @@ export default function App() {
         </div>
       )}
 
-      <Canvas>
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[50, 100, 50]} intensity={1} />
+      <Canvas shadows>
+        <fog attach="fog" args={["#1a2a1a", 40, 180]} />
+        <ambientLight intensity={0.3} />
+        <hemisphereLight intensity={0.5} groundColor="#3d5c2d" />
+        <directionalLight 
+          position={[50, 100, 50]} 
+          intensity={1} 
+          castShadow 
+          shadow-mapSize={[2048, 2048]}
+          shadow-camera-far={200}
+          shadow-camera-left={-100}
+          shadow-camera-right={100}
+          shadow-camera-top={100}
+          shadow-camera-bottom={-100}
+        />
+        <EnvironmentSimple worldSize={120} />
         <Game 
           onAgentClick={handleAgentClick}
           agents={agents}
+          chatOpen={chatOpen}
         />
       </Canvas>
 
