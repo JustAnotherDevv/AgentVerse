@@ -1,3 +1,4 @@
+import { usePrivy } from "@privy-io/react-auth";
 import { theme } from "../../lib/theme";
 
 interface MainMenuProps {
@@ -5,6 +6,18 @@ interface MainMenuProps {
 }
 
 export function MainMenu({ onStart }: MainMenuProps) {
+  const { user, login, logout, ready } = usePrivy();
+
+  const walletAddress = user?.wallet?.address;
+  const isAuthenticated = !!user;
+  const isReady = ready === true;
+
+  const formatAddress = (addr: string) => {
+    return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
+  };
+
+  const canStart = isReady && isAuthenticated;
+
   return (
     <div style={{
       position: "fixed",
@@ -46,37 +59,84 @@ export function MainMenu({ onStart }: MainMenuProps) {
       }}>
         <button
           onClick={onStart}
+          disabled={!canStart}
           style={{
             padding: "16px 48px",
-            background: theme.colors.background.secondary,
-            border: `2px solid ${theme.colors.border.default}`,
-            color: theme.colors.text.primary,
+            background: canStart ? theme.colors.background.secondary : theme.colors.background.tertiary,
+            border: `2px solid ${canStart ? theme.colors.border.default : theme.colors.border.subtle}`,
+            color: canStart ? theme.colors.text.primary : theme.colors.text.muted,
             fontSize: theme.fontSize.lg,
             fontFamily: theme.fonts.mono,
-            cursor: "pointer",
+            cursor: canStart ? "pointer" : "not-allowed",
             letterSpacing: "2px",
             textTransform: "uppercase",
-            transition: "all 0.2s",
+            opacity: canStart ? 1 : 0.5,
           }}
         >
-          START GAME
+          {canStart ? "START GAME" : "CONNECT WALLET TO PLAY"}
         </button>
 
-        <button
-          onClick={() => alert("Settings coming soon")}
-          style={{
+        {!isReady ? (
+          <div style={{
             padding: "12px 48px",
-            background: "transparent",
+            background: theme.colors.background.secondary,
             border: `1px solid ${theme.colors.border.default}`,
-            color: theme.colors.text.secondary,
+            color: theme.colors.text.muted,
             fontSize: theme.fontSize.base,
             fontFamily: theme.fonts.mono,
-            cursor: "pointer",
-            letterSpacing: "1px",
-          }}
-        >
-          SETTINGS
-        </button>
+          }}>
+            LOADING...
+          </div>
+        ) : !isAuthenticated ? (
+          <button
+            onClick={login}
+            style={{
+              padding: "12px 48px",
+              background: theme.colors.background.secondary,
+              border: `2px solid ${theme.colors.accent.primary}`,
+              color: theme.colors.text.primary,
+              fontSize: theme.fontSize.base,
+              fontFamily: theme.fonts.mono,
+              cursor: "pointer",
+              letterSpacing: "1px",
+            }}
+          >
+            CONNECT WALLET
+          </button>
+        ) : (
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+            alignItems: "center",
+          }}>
+            <div style={{
+              padding: "12px 48px",
+              background: theme.colors.background.secondary,
+              border: `1px solid ${theme.colors.border.default}`,
+              color: theme.colors.text.secondary,
+              fontSize: theme.fontSize.sm,
+              fontFamily: theme.fonts.mono,
+              textAlign: "center",
+            }}>
+              {walletAddress ? `CONNECTED: ${formatAddress(walletAddress)}` : "SIGNED IN"}
+            </div>
+            <button
+              onClick={logout}
+              style={{
+                padding: "8px 24px",
+                background: "transparent",
+                border: `1px solid ${theme.colors.border.subtle}`,
+                color: theme.colors.text.muted,
+                fontSize: theme.fontSize.xs,
+                fontFamily: theme.fonts.mono,
+                cursor: "pointer",
+              }}
+            >
+              DISCONNECT
+            </button>
+          </div>
+        )}
 
         <button
           onClick={() => alert("How to Play: Click on agents to interact with them. Use WASD to move camera. Complete tasks and vote in governance.")}

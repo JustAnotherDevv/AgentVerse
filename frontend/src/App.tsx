@@ -10,6 +10,7 @@ import { GovernancePanel } from "./components/game/GovernancePanel";
 import { PredictionLeaderboard } from "./components/game/PredictionLeaderboard";
 import { MainMenu } from "./components/game/MainMenu";
 import { useAgentSystem, type Agent } from "./hooks/useAgentSystem";
+import { usePrivy } from "@privy-io/react-auth";
 import { theme } from "./lib/theme";
 
 function getOrCreateSessionId(): string {
@@ -188,6 +189,7 @@ function Game({
 
 export default function App() {
   useInput();
+  usePrivy();
   const [gameStarted, setGameStarted] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
