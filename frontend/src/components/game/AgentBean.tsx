@@ -39,9 +39,9 @@ export function AgentBean({ name, position, avatar, personality, stats, skills, 
 
   const getReputationColor = () => {
     if (!stats) return '#6b7280';
-    if (stats.reputation >= 70) return '#22c55e';
-    if (stats.reputation >= 40) return '#f59e0b';
-    return '#ef4444';
+    if (stats.reputation >= 70) return '#d4a857';
+    if (stats.reputation >= 40) return '#b8956c';
+    return '#c97878';
   };
 
   const topSkill = skills?.sort((a, b) => b.level - a.level)[0];
@@ -176,8 +176,8 @@ export function AgentBean({ name, position, avatar, personality, stats, skills, 
       <mesh position={[0.5, 0.8, 0]}>
         <sphereGeometry args={[0.15, 16, 16]} />
         <meshStandardMaterial 
-          color={personality.mood === 'happy' ? '#22c55e' : personality.mood === 'thinking' ? '#3b82f6' : '#f59e0b'} 
-          emissive={personality.mood === 'happy' ? '#22c55e' : personality.mood === 'thinking' ? '#3b82f6' : '#f59e0b'}
+          color={personality.mood === 'happy' ? '#d4a857' : personality.mood === 'thinking' ? '#b8956c' : '#c9a050'} 
+          emissive={personality.mood === 'happy' ? '#d4a857' : personality.mood === 'thinking' ? '#b8956c' : '#c9a050'}
           emissiveIntensity={0.5}
         />
       </mesh>
@@ -185,7 +185,7 @@ export function AgentBean({ name, position, avatar, personality, stats, skills, 
       {/* Name tag */}
       <Html position={[0, 1.8, 0]} center>
         <div style={{
-          background: isSelected ? 'rgba(251, 191, 36, 0.9)' : 'rgba(139, 92, 246, 0.9)',
+          background: isSelected ? 'rgba(251, 191, 36, 0.9)' : 'rgba(212, 168, 87, 0.9)',
           color: "white",
           padding: "4px 12px",
           borderRadius: "12px",
@@ -263,7 +263,7 @@ function AgentChatBubble({ visible, message }: { visible: boolean; message?: str
         background: "white",
         padding: "10px 14px",
         borderRadius: "14px",
-        border: "2px solid #8b5cf6",
+        border: "2px solid #d4a857",
         fontSize: "14px",
         fontFamily: "Arial, sans-serif",
         boxShadow: "0 2px 12px rgba(0,0,0,0.25)",
@@ -289,7 +289,7 @@ function AgentChatBubble({ visible, message }: { visible: boolean; message?: str
           height: 0,
           borderLeft: "10px solid transparent",
           borderRight: "10px solid transparent",
-          borderTop: "10px solid #8b5cf6",
+          borderTop: "10px solid #d4a857",
         }} />
       </div>
       <style>{`

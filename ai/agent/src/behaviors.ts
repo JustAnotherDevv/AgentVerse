@@ -259,6 +259,41 @@ export class BehaviorEngine {
         return { success: false, message: '' };
       }
     });
+
+    this.registerBehavior({
+      name: 'predict',
+      description: 'Make BTC price prediction',
+      execute: async (agent: RuntimeAgent, ctx: BehaviorContext): Promise<BehaviorResult> => {
+        const { predictionEngine } = await import('./predictionEngine.js');
+        const { btcPriceService } = await import('./btcPrice.js');
+        
+        const currentPrice = btcPriceService.getCurrentPrice();
+        const prediction = await predictionEngine.makePrediction(agent.config);
+        
+        const agentAny = agent as any;
+        if (!agentAny.predictionHistory) {
+          agentAny.predictionHistory = [];
+        }
+        agentAny.predictionHistory.push(prediction);
+        
+        if (agentAny.predictionHistory.length > 100) {
+          agentAny.predictionHistory.shift();
+        }
+        
+        const direction = prediction.predictionDirection === 'up' ? '📈 UP' : prediction.predictionDirection === 'down' ? '📉 DOWN' : '➡️ FLAT';
+        
+        return {
+          success: true,
+          message: `${agent.config.name} predicts Bitcoin will go ${direction} in 5 min. Current: $${currentPrice.toLocaleString()} | Confidence: ${(prediction.confidence * 100).toFixed(0)}%`,
+          data: { 
+            type: 'prediction', 
+            prediction: prediction,
+            currentPrice,
+            agentStrategy: agent.config.predictionConfig?.strategy
+          }
+        };
+      }
+    });
   }
 
   registerBehavior(behavior: Behavior): void {

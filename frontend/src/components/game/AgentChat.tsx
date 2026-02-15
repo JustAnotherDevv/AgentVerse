@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { theme } from "../../lib/theme";
 
 interface Message {
   role: "user" | "assistant";
@@ -11,7 +12,7 @@ interface AgentChatProps {
   agent?: {
     id: string;
     name: string;
-    avatar: { emoji: string };
+    avatar: { emoji: string; color?: string };
   };
   onSend?: (message: string) => Promise<any>;
 }
@@ -30,32 +31,30 @@ export function AgentChat({ open, onClose, agent, onSend }: AgentChatProps) {
     if (open && agent && messages.length === 0) {
       setMessages([{
         role: "assistant",
-        content: `Hi! I'm ${agent.name}. ${agent.avatar.emoji} How can I help you today?`
+        content: `INITIALIZING ${agent.name.toUpperCase()}_MODULE... SYSTEM READY. How may I assist you?`
       }]);
     }
   }, [open, agent]);
 
+  useEffect(() => {
+    if (!open) {
+      setMessages([]);
+      setInput("");
+    }
+  }, [open]);
+
   const sendMessage = async () => {
     if (!input.trim() || loading || !onSend) return;
-    
     const userMessage = input.trim();
     setInput("");
     setLoading(true);
-    
     setMessages(prev => [...prev, { role: "user", content: userMessage }]);
 
     try {
       const data = await onSend(userMessage);
-      
-      setMessages(prev => [...prev, { 
-        role: "assistant", 
-        content: data.response || "Sorry, I didn't get a response."
-      }]);
+      setMessages(prev => [...prev, { role: "assistant", content: data.response || "> ERROR: NO RESPONSE" }]);
     } catch (error) {
-      setMessages(prev => [...prev, { 
-        role: "assistant", 
-        content: "Failed to send message. Please try again."
-      }]);
+      setMessages(prev => [...prev, { role: "assistant", content: "> ERROR: TRANSMISSION FAILED" }]);
     } finally {
       setLoading(false);
     }
@@ -73,149 +72,106 @@ export function AgentChat({ open, onClose, agent, onSend }: AgentChatProps) {
   return (
     <div style={{
       position: "fixed",
-      bottom: "20px",
-      right: "20px",
-      width: "380px",
-      height: "500px",
-      background: "#1f2937",
-      borderRadius: "16px",
-      boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+      bottom: theme.spacing.md,
+      right: theme.spacing.md,
+      width: "340px",
+      height: "440px",
+      background: theme.colors.background.secondary,
+      border: `2px solid ${theme.colors.border.default}`,
       display: "flex",
       flexDirection: "column",
       overflow: "hidden",
       zIndex: 1000,
-      border: "2px solid #8b5cf6",
+      fontFamily: theme.fonts.mono,
     }}>
       {/* Header */}
       <div style={{
-        background: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)",
-        padding: "16px",
+        background: theme.colors.background.primary,
+        padding: theme.spacing.sm,
+        borderBottom: `2px solid ${theme.colors.border.default}`,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{
-            width: "36px",
-            height: "36px",
-            borderRadius: "50%",
-            background: "#a855f7",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "20px",
-          }}>
-            {agent?.avatar?.emoji || "🤖"}
-          </div>
-          <div>
-            <div style={{ color: "white", fontWeight: "bold", fontSize: "16px" }}>{agent?.name || "Agent"}</div>
-            <div style={{ color: "#c4b5fd", fontSize: "12px" }}>AI Assistant</div>
+        <div style={{ display: "flex", alignItems: "center", gap: theme.spacing.xs }}>
+          <div style={{ width: 8, height: 8, background: theme.colors.accent.primary }} />
+          <div style={{ color: theme.colors.text.primary, fontWeight: 700, fontSize: theme.fontSize.sm, letterSpacing: '1px' }}>
+            {agent?.name?.toUpperCase() || 'TERMINAL'}
           </div>
         </div>
-        <button
-          onClick={onClose}
-          style={{
-            background: "rgba(255,255,255,0.2)",
-            border: "none",
-            borderRadius: "8px",
-            padding: "8px",
-            cursor: "pointer",
-            color: "white",
-            fontSize: "18px",
-          }}
-        >
-          ✕
+        <button onClick={onClose} style={{
+          background: "transparent",
+          border: `1px solid ${theme.colors.border.default}`,
+          color: theme.colors.text.primary,
+          cursor: "pointer",
+          padding: "2px 6px",
+          width: 24,
+          height: 24,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: theme.fonts.mono,
+        }}>
+          ×
         </button>
       </div>
 
       {/* Messages */}
-      <div style={{
-        flex: 1,
-        overflow: "auto",
-        padding: "16px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "12px",
-      }}>
+      <div style={{ flex: 1, overflow: "auto", padding: theme.spacing.xs, display: "flex", flexDirection: "column", gap: theme.spacing.xs }}>
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            style={{
-              alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
-              maxWidth: "80%",
-              padding: "10px 14px",
-              borderRadius: "16px",
-              background: msg.role === "user" ? "#8b5cf6" : "#374151",
-              color: "white",
-              fontSize: "14px",
-              lineHeight: "1.4",
-              wordBreak: "break-word",
-            }}
-          >
-            {msg.role === "assistant" && (
-              <span style={{ marginRight: "6px" }}>🤖</span>
-            )}
-            {msg.content}
+          <div key={i} style={{
+            alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+            maxWidth: "85%",
+            padding: theme.spacing.xs,
+            border: `1px solid ${msg.role === "user" ? theme.colors.accent.primary : theme.colors.border.subtle}`,
+            background: msg.role === "user" ? `${theme.colors.accent.primary}15` : theme.colors.background.tertiary,
+          }}>
+            <div style={{ color: msg.role === "user" ? theme.colors.accent.primary : theme.colors.text.muted, fontSize: theme.fontSize.xs, marginBottom: '2px' }}>
+              {msg.role === "user" ? "▸ YOU" : `▸ ${agent?.name?.toUpperCase() || 'BOT'}`}
+            </div>
+            <div style={{ color: theme.colors.text.secondary, fontSize: theme.fontSize.xs, whiteSpace: 'pre-wrap' }}>
+              {msg.content}
+            </div>
           </div>
         ))}
         {loading && (
-          <div style={{
-            alignSelf: "flex-start",
-            padding: "10px 14px",
-            borderRadius: "16px",
-            background: "#374151",
-            color: "#9ca3af",
-            fontSize: "14px",
-          }}>
-            Typing...
+          <div style={{ alignSelf: "flex-start", padding: theme.spacing.xs, border: `1px solid ${theme.colors.border.subtle}`, background: theme.colors.background.tertiary }}>
+            <div style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.xs }}>▸ PROCESSING...</div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <div style={{
-        padding: "12px",
-        borderTop: "1px solid #374151",
-        display: "flex",
-        gap: "8px",
-      }}>
+      <div style={{ padding: theme.spacing.xs, borderTop: `2px solid ${theme.colors.border.default}`, background: theme.colors.background.primary, display: "flex", gap: theme.spacing.xs }}>
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
+          placeholder="ENTER COMMAND..."
           disabled={loading}
           style={{
             flex: 1,
-            padding: "12px 16px",
-            borderRadius: "24px",
-            border: "1px solid #4b5563",
-            background: "#111827",
-            color: "white",
-            fontSize: "14px",
+            padding: theme.spacing.xs,
+            border: `1px solid ${theme.colors.border.default}`,
+            background: theme.colors.background.tertiary,
+            color: theme.colors.text.primary,
+            fontSize: theme.fontSize.xs,
+            fontFamily: theme.fonts.mono,
             outline: "none",
           }}
         />
-        <button
-          onClick={sendMessage}
-          disabled={loading || !input.trim()}
-          style={{
-            width: "44px",
-            height: "44px",
-            borderRadius: "50%",
-            border: "none",
-            background: input.trim() ? "#8b5cf6" : "#4b5563",
-            color: "white",
-            cursor: input.trim() ? "pointer" : "not-allowed",
-            fontSize: "18px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          ➤
+        <button onClick={sendMessage} disabled={loading || !input.trim()} style={{
+          width: 36,
+          height: 36,
+          border: `1px solid ${theme.colors.border.default}`,
+          background: input.trim() && !loading ? theme.colors.accent.primary : theme.colors.background.tertiary,
+          color: input.trim() && !loading ? theme.colors.text.inverse : theme.colors.text.muted,
+          cursor: input.trim() && !loading ? "pointer" : "not-allowed",
+          fontFamily: theme.fonts.mono,
+        }}>
+          ▸
         </button>
       </div>
     </div>

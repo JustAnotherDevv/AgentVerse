@@ -7,7 +7,10 @@ import { WorldChat } from "./components/game/WorldChat";
 import { AgentPanel } from "./components/game/AgentPanel";
 import { TaskMarketplace } from "./components/game/TaskMarketplace";
 import { GovernancePanel } from "./components/game/GovernancePanel";
+import { PredictionLeaderboard } from "./components/game/PredictionLeaderboard";
+import { MainMenu } from "./components/game/MainMenu";
 import { useAgentSystem, type Agent } from "./hooks/useAgentSystem";
+import { theme } from "./lib/theme";
 
 function getOrCreateSessionId(): string {
   if (typeof window === 'undefined') return 'server';
@@ -185,11 +188,13 @@ function Game({
 
 export default function App() {
   useInput();
+  const [gameStarted, setGameStarted] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [taskMarketplaceOpen, setTaskMarketplaceOpen] = useState(false);
   const [governanceOpen, setGovernanceOpen] = useState(false);
+  const [predictionLeaderboardOpen, setPredictionLeaderboardOpen] = useState(false);
   const [tasks, setTasks] = useState<any[]>([]);
   const [sessionId] = useState(() => getOrCreateSessionId());
   
@@ -228,6 +233,10 @@ export default function App() {
 
   return (
     <div className="w-screen h-screen bg-black">
+      {!gameStarted ? (
+        <MainMenu onStart={() => setGameStarted(true)} />
+      ) : (
+        <>
       {/* Connection status */}
       <div style={{
         position: 'fixed',
@@ -239,13 +248,17 @@ export default function App() {
         alignItems: 'center'
       }}>
         <div style={{
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background: connected ? '#22c55e' : '#ef4444',
+          width: 10,
+          height: 10,
+          background: connected ? theme.colors.accent.primary : theme.colors.accent.error,
         }} />
-        <span style={{ color: '#9ca3af', fontSize: 12 }}>
-          {connected ? `Connected (${agents.length} agents)` : 'Connecting...'}
+        <span style={{ 
+          color: theme.colors.text.primary, 
+          fontSize: theme.fontSize.xs,
+          fontFamily: theme.fonts.mono,
+          letterSpacing: '1px',
+        }}>
+          {connected ? `[ONLINE ${agents.length} AGENTS]` : '[CONNECTING...]'}
         </span>
       </div>
 
@@ -258,20 +271,19 @@ export default function App() {
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 100,
-          padding: '8px 16px',
-          background: 'rgba(139, 92, 246, 0.9)',
-          border: 'none',
-          borderRadius: '8px',
-          color: 'white',
-          fontSize: '12px',
-          fontWeight: 'bold',
+          padding: '6px 12px',
+          background: 'transparent',
+          border: `1px solid ${theme.colors.border.default}`,
+          color: theme.colors.text.primary,
+          fontSize: theme.fontSize.xs,
+          fontFamily: theme.fonts.mono,
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           gap: '6px',
         }}
       >
-        📋 Tasks ({tasks.filter(t => t.status === 'open').length})
+        [TASKS:{tasks.filter(t => t.status === 'open').length}]
       </button>
 
       {/* Governance Button */}
@@ -281,22 +293,45 @@ export default function App() {
           position: 'fixed',
           top: 10,
           left: '50%',
-          transform: 'translateX(calc(-50% + 70px))',
+          transform: 'translateX(calc(-50% + 90px))',
           zIndex: 100,
-          padding: '8px 16px',
-          background: 'rgba(34, 197, 94, 0.9)',
-          border: 'none',
-          borderRadius: '8px',
-          color: 'white',
-          fontSize: '12px',
-          fontWeight: 'bold',
+          padding: '6px 12px',
+          background: 'transparent',
+          border: `1px solid ${theme.colors.border.default}`,
+          color: theme.colors.text.primary,
+          fontSize: theme.fontSize.xs,
+          fontFamily: theme.fonts.mono,
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           gap: '6px',
         }}
       >
-        🗳️ Governance
+        [GOV]
+      </button>
+
+      {/* Prediction Arena Button */}
+      <button
+        onClick={() => setPredictionLeaderboardOpen(true)}
+        style={{
+          position: 'fixed',
+          top: 10,
+          left: '50%',
+          transform: 'translateX(calc(-50% + 150px))',
+          zIndex: 100,
+          padding: '6px 12px',
+          background: 'transparent',
+          border: `1px solid ${theme.colors.border.default}`,
+          color: theme.colors.text.primary,
+          fontSize: theme.fontSize.xs,
+          fontFamily: theme.fonts.mono,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+      >
+        [PREDICT]
       </button>
 
       {/* Agent selector in top right */}
@@ -307,24 +342,23 @@ export default function App() {
           right: 10,
           zIndex: 100,
           display: 'flex',
-          gap: '8px',
+          gap: '6px',
         }}>
-          {agents.slice(0, 3).map(agent => (
+          {agents.slice(0, 5).map(agent => (
             <div
               key={agent.id}
               onClick={() => handleAgentClick(agent)}
               style={{
-                width: 40,
-                height: 40,
-                borderRadius: '50%',
-                background: agent.avatar.color,
+                width: 36,
+                height: 36,
+                background: theme.colors.background.tertiary,
+                border: `1px solid ${selectedAgent?.id === agent.id ? theme.colors.accent.primary : theme.colors.border.default}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 20,
+                fontSize: 18,
                 cursor: 'pointer',
-                border: selectedAgent?.id === agent.id ? '2px solid white' : '2px solid transparent',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                boxShadow: selectedAgent?.id === agent.id ? `0 0 10px ${theme.colors.accent.primary}` : 'none',
               }}
               title={agent.name}
             >
@@ -362,7 +396,6 @@ export default function App() {
 
       {taskMarketplaceOpen && (
         <TaskMarketplace
-          agents={agents}
           tasks={tasks}
           onCreateTask={handleCreateTask}
           onClose={() => setTaskMarketplaceOpen(false)}
@@ -373,6 +406,14 @@ export default function App() {
         <GovernancePanel
           onClose={() => setGovernanceOpen(false)}
         />
+      )}
+
+      {predictionLeaderboardOpen && (
+        <PredictionLeaderboard
+          onClose={() => setPredictionLeaderboardOpen(false)}
+        />
+      )}
+        </>
       )}
     </div>
   );

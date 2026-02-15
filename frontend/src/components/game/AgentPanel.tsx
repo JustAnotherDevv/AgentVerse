@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Star, DollarSign, CheckCircle, Users, GitBranch, Zap, Loader2 } from "lucide-react";
+import { theme } from "../../lib/theme";
 import type { Agent } from "../../hooks/useAgentSystem";
 
 interface AgentPanelProps {
@@ -17,14 +17,7 @@ export function AgentPanel({ agent, open = true, onClose, onTip }: AgentPanelPro
 
   if (!agent || !open) return null;
 
-  const stats = agent.stats || {
-    reputation: 50,
-    totalEarnings: 0,
-    tasksCompleted: 0,
-    tasksFailed: 0,
-    humansHelped: 0,
-    cooperations: 0
-  };
+  const stats = agent.stats || { reputation: 50, totalEarnings: 0, tasksCompleted: 0, tasksFailed: 0, humansHelped: 0, cooperations: 0 };
 
   const handleTip = async () => {
     if (!onTip || tipping) return;
@@ -40,314 +33,184 @@ export function AgentPanel({ agent, open = true, onClose, onTip }: AgentPanelPro
     }
   };
 
-  const getRepColor = () => {
-    if (stats.reputation >= 70) return "text-green-500";
-    if (stats.reputation >= 40) return "text-yellow-500";
-    return "text-red-500";
-  };
-
   return (
     <div style={{
       position: "fixed",
       top: "50%",
-      right: "20px",
+      right: theme.spacing.md,
       transform: "translateY(-50%)",
-      width: "320px",
-      background: "rgba(15, 23, 42, 0.95)",
-      borderRadius: "16px",
-      border: "1px solid rgba(139, 92, 246, 0.3)",
-      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
-      zIndex: 200,
+      width: "300px",
+      background: theme.colors.background.secondary,
+      border: `2px solid ${theme.colors.border.default}`,
+      zIndex: 2000,
       overflow: "hidden",
+      fontFamily: theme.fonts.mono,
     }}>
       {/* Header */}
       <div style={{
-        background: "linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.2))",
-        padding: "16px",
-        borderBottom: "1px solid rgba(139, 92, 246, 0.2)",
+        background: theme.colors.background.primary,
+        padding: theme.spacing.sm,
+        borderBottom: `2px solid ${theme.colors.border.default}`,
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{
-              width: "48px",
-              height: "48px",
-              borderRadius: "50%",
-              background: agent.avatar.color,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "24px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-            }}>
-              {agent.avatar.emoji}
+        <div style={{ display: "flex", alignItems: "center", gap: theme.spacing.sm }}>
+          <div style={{
+            width: 44,
+            height: 44,
+            border: `2px solid ${theme.colors.border.default}`,
+            background: theme.colors.background.tertiary,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "22px",
+          }}>
+            {agent.avatar.emoji}
+          </div>
+          <div>
+            <div style={{ color: theme.colors.text.primary, fontWeight: 700, fontSize: theme.fontSize.sm, textTransform: 'uppercase', letterSpacing: '1px' }}>
+              {agent.name}
             </div>
-            <div>
-              <h3 style={{ margin: 0, color: "white", fontSize: "18px", fontWeight: "bold" }}>
-                {agent.name}
-              </h3>
-              <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: "12px" }}>
-                {agent.description}
-              </p>
+            <div style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.xs, maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {agent.description}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "rgba(255,255,255,0.6)",
-              cursor: "pointer",
-              padding: "4px",
-            }}
-          >
-            <X size={20} />
-          </button>
         </div>
+        <button onClick={onClose} style={{
+          background: "transparent",
+          border: `1px solid ${theme.colors.border.default}`,
+          color: theme.colors.text.primary,
+          cursor: "pointer",
+          padding: "2px 6px",
+          width: 24,
+          height: 24,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: theme.fonts.mono,
+        }}>
+          ×
+        </button>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-        <button
-          onClick={() => setActiveTab("stats")}
-          style={{
-            flex: 1,
-            padding: "12px",
-            background: activeTab === "stats" ? "rgba(139, 92, 246, 0.2)" : "transparent",
-            border: "none",
-            color: activeTab === "stats" ? "#a78bfa" : "rgba(255,255,255,0.5)",
-            cursor: "pointer",
-            fontWeight: activeTab === "stats" ? "bold" : "normal",
-          }}
-        >
-          Stats
-        </button>
-        <button
-          onClick={() => setActiveTab("skills")}
-          style={{
-            flex: 1,
-            padding: "12px",
-            background: activeTab === "skills" ? "rgba(139, 92, 246, 0.2)" : "transparent",
-            border: "none",
-            color: activeTab === "skills" ? "#a78bfa" : "rgba(255,255,255,0.5)",
-            cursor: "pointer",
-            fontWeight: activeTab === "skills" ? "bold" : "normal",
-          }}
-        >
-          Skills
-        </button>
+      <div style={{ display: "flex", borderBottom: `2px solid ${theme.colors.border.default}` }}>
+        {(["stats", "skills"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              flex: 1,
+              padding: theme.spacing.xs,
+              background: activeTab === tab ? theme.colors.accent.primary : "transparent",
+              border: "none",
+              color: activeTab === tab ? theme.colors.text.inverse : theme.colors.text.primary,
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: theme.fontSize.xs,
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+              fontFamily: theme.fonts.mono,
+            }}
+          >
+            {activeTab === tab ? `▸ ${tab.toUpperCase()}` : tab.toUpperCase()}
+          </button>
+        ))}
       </div>
 
       {/* Content */}
-      <div style={{ padding: "16px" }}>
+      <div style={{ padding: theme.spacing.sm }}>
         {activeTab === "stats" ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            {/* Reputation */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "12px",
-              background: "rgba(255,255,255,0.05)",
-              borderRadius: "8px",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Star size={18} className={getRepColor()} />
-                <span style={{ color: "rgba(255,255,255,0.8)" }}>Reputation</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: theme.spacing.xs }}>
+            {[
+              { label: "REPUTATION", value: `${stats.reputation}%`, color: stats.reputation >= 70 ? theme.colors.accent.primary : stats.reputation >= 40 ? theme.colors.accent.warning : theme.colors.accent.error },
+              { label: "EARNINGS", value: `${stats.totalEarnings} USDC`, color: theme.colors.accent.primary },
+              { label: "TASKS", value: `${stats.tasksCompleted} DONE`, color: theme.colors.accent.primary },
+              { label: "HELPED", value: `${stats.humansHelped} HUMANS`, color: theme.colors.accent.magic },
+            ].map((stat) => (
+              <div key={stat.label} style={{
+                display: "flex",
+                justifyContent: "space-between",
+                padding: theme.spacing.xs,
+                border: `1px solid ${theme.colors.border.subtle}`,
+                background: theme.colors.background.tertiary,
+              }}>
+                <span style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.xs }}>{stat.label}</span>
+                <span style={{ color: stat.color, fontWeight: 700, fontSize: theme.fontSize.xs }}>{stat.value}</span>
               </div>
-              <span style={{ color: getRepColor() === "text-green-500" ? "#22c55e" : getRepColor() === "text-yellow-500" ? "#f59e0b" : "#ef4444", fontWeight: "bold", fontSize: "18px" }}>
-                {stats.reputation}
-              </span>
-            </div>
-
-            {/* Earnings */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "12px",
-              background: "rgba(255,255,255,0.05)",
-              borderRadius: "8px",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <DollarSign size={18} style={{ color: "#22c55e" }} />
-                <span style={{ color: "rgba(255,255,255,0.8)" }}>Total Earnings</span>
-              </div>
-              <span style={{ color: "#22c55e", fontWeight: "bold", fontSize: "18px" }}>
-                ${stats.totalEarnings}
-              </span>
-            </div>
-
-            {/* Tasks */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "12px",
-              background: "rgba(255,255,255,0.05)",
-              borderRadius: "8px",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <CheckCircle size={18} style={{ color: "#3b82f6" }} />
-                <span style={{ color: "rgba(255,255,255,0.8)" }}>Tasks Done</span>
-              </div>
-              <span style={{ color: "white", fontWeight: "bold", fontSize: "18px" }}>
-                {stats.tasksCompleted}
-              </span>
-            </div>
-
-            {/* Humans Helped */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "12px",
-              background: "rgba(255,255,255,0.05)",
-              borderRadius: "8px",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Users size={18} style={{ color: "#f472b6" }} />
-                <span style={{ color: "rgba(255,255,255,0.8)" }}>Humans Helped</span>
-              </div>
-              <span style={{ color: "white", fontWeight: "bold", fontSize: "18px" }}>
-                {stats.humansHelped}
-              </span>
-            </div>
-
-            {/* Cooperations */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "12px",
-              background: "rgba(255,255,255,0.05)",
-              borderRadius: "8px",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <GitBranch size={18} style={{ color: "#8b5cf6" }} />
-                <span style={{ color: "rgba(255,255,255,0.8)" }}>Cooperations</span>
-              </div>
-              <span style={{ color: "white", fontWeight: "bold", fontSize: "18px" }}>
-                {stats.cooperations}
-              </span>
-            </div>
+            ))}
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: theme.spacing.xs }}>
             {agent.skills && agent.skills.length > 0 ? (
               agent.skills.map((skill, idx) => (
                 <div key={idx} style={{
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  padding: "12px",
-                  background: "rgba(255,255,255,0.05)",
-                  borderRadius: "8px",
+                  padding: theme.spacing.xs,
+                  border: `1px solid ${theme.colors.border.subtle}`,
+                  background: theme.colors.background.tertiary,
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <Zap size={16} style={{ color: "#60a5fa" }} />
-                    <span style={{ color: "white", textTransform: "capitalize" }}>
-                      {skill.name}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{
-                      width: "60px",
-                      height: "6px",
-                      background: "rgba(255,255,255,0.1)",
-                      borderRadius: "3px",
-                      overflow: "hidden",
-                    }}>
-                      <div style={{
-                        width: `${(skill.level / 10) * 100}%`,
-                        height: "100%",
-                        background: "linear-gradient(90deg, #8b5cf6, #a78bfa)",
-                        borderRadius: "3px",
-                      }} />
+                  <span style={{ color: theme.colors.text.secondary, fontSize: theme.fontSize.xs, textTransform: 'uppercase' }}>{skill.name}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: theme.spacing.xs }}>
+                    <div style={{ width: 50, height: 4, background: theme.colors.background.primary, border: `1px solid ${theme.colors.border.default}` }}>
+                      <div style={{ width: `${(skill.level / 10) * 100}%`, height: "100%", background: theme.colors.accent.primary }} />
                     </div>
-                    <span style={{ color: "#a78bfa", fontWeight: "bold", fontSize: "14px", minWidth: "24px" }}>
-                      {skill.level}
-                    </span>
+                    <span style={{ color: theme.colors.accent.primary, fontWeight: 700, fontSize: theme.fontSize.xs }}>LV.{skill.level}</span>
                   </div>
                 </div>
               ))
             ) : (
-              <p style={{ color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "20px" }}>
-                No skills yet. Keep interacting with this agent!
-              </p>
+              <div style={{ color: theme.colors.text.muted, textAlign: "center", padding: theme.spacing.md, fontSize: theme.fontSize.xs, border: `1px dashed ${theme.colors.border.subtle}` }}>
+                NO DATA
+              </div>
             )}
           </div>
         )}
       </div>
 
       {/* Tip Section */}
-      <div style={{ padding: "16px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+      <div style={{ padding: theme.spacing.sm, borderTop: `2px solid ${theme.colors.border.default}`, background: theme.colors.background.primary }}>
         {tipResult?.success ? (
-          <div style={{
-            padding: "12px",
-            background: "rgba(34, 197, 94, 0.2)",
-            borderRadius: "8px",
-            border: "1px solid #22c55e",
-          }}>
-            <p style={{ margin: "0 0 8px 0", color: "#22c55e", fontSize: "14px" }}>
-              ✓ Tip sent! ({tipAmount} pathUSD)
-            </p>
-            <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: "10px", wordBreak: "break-all" }}>
-              Tx: {tipResult.txHash?.slice(0, 20)}...
-            </p>
+          <div style={{ padding: theme.spacing.xs, border: `1px solid ${theme.colors.accent.primary}`, background: `${theme.colors.accent.primary}10` }}>
+            <div style={{ color: theme.colors.accent.primary, fontSize: theme.fontSize.xs }}>▸ TIP SENT: +{tipAmount} USDC</div>
+            <div style={{ color: theme.colors.text.muted, fontSize: 10, marginTop: 2 }}>TX: {tipResult.txHash?.slice(0, 12)}...</div>
           </div>
         ) : (
           <>
-            <div style={{ marginBottom: "12px" }}>
-              <label style={{ display: "block", color: "rgba(255,255,255,0.7)", fontSize: "12px", marginBottom: "6px" }}>
-                Tip Amount (pathUSD)
-              </label>
-              <div style={{ display: "flex", gap: "8px" }}>
-                {[1, 5, 10, 25].map(amt => (
-                  <button
-                    key={amt}
-                    onClick={() => setTipAmount(amt)}
-                    style={{
-                      flex: 1,
-                      padding: "8px",
-                      background: tipAmount === amt ? "rgba(139, 92, 246, 0.3)" : "rgba(255,255,255,0.05)",
-                      border: tipAmount === amt ? "1px solid #8b5cf6" : "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: "6px",
-                      color: tipAmount === amt ? "#a78bfa" : "rgba(255,255,255,0.7)",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                    }}
-                  >
-                    {amt}
-                  </button>
-                ))}
-              </div>
+            <div style={{ marginBottom: theme.spacing.xs, display: 'flex', gap: '2px' }}>
+              {[1, 5, 10, 25].map((amt) => (
+                <button key={amt} onClick={() => setTipAmount(amt)} style={{
+                  flex: 1,
+                  padding: '2px',
+                  background: tipAmount === amt ? theme.colors.accent.primary : 'transparent',
+                  border: `1px solid ${theme.colors.border.default}`,
+                  color: tipAmount === amt ? theme.colors.text.inverse : theme.colors.text.primary,
+                  cursor: "pointer",
+                  fontSize: theme.fontSize.xs,
+                  fontWeight: 700,
+                  fontFamily: theme.fonts.mono,
+                }}>{amt}</button>
+              ))}
             </div>
-            <button
-              onClick={handleTip}
-              disabled={tipping || !onTip}
-              style={{
-                width: "100%",
-                padding: "12px",
-                background: tipping ? "rgba(139, 92, 246, 0.5)" : "linear-gradient(135deg, #8b5cf6, #6366f1)",
-                border: "none",
-                borderRadius: "8px",
-                color: "white",
-                fontWeight: "bold",
-                cursor: tipping ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-              }}
-            >
-              {tipping ? <Loader2 size={16} className="animate-spin" /> : <DollarSign size={16} />}
-              {tipping ? "Sending..." : `Tip ${tipAmount} pathUSD`}
+            <button onClick={handleTip} disabled={tipping || !onTip} style={{
+              width: "100%",
+              padding: theme.spacing.xs,
+              background: tipping ? theme.colors.background.tertiary : theme.colors.accent.primary,
+              border: `1px solid ${theme.colors.border.default}`,
+              color: tipping ? theme.colors.text.muted : theme.colors.text.inverse,
+              cursor: tipping ? "not-allowed" : "pointer",
+              fontWeight: 700,
+              fontSize: theme.fontSize.xs,
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+              fontFamily: theme.fonts.mono,
+            }}>
+              {tipping ? 'SENDING...' : `TIP ${tipAmount} USDC`}
             </button>
-            {tipResult?.error && (
-              <p style={{ color: "#ef4444", fontSize: "12px", marginTop: "8px" }}>
-                Error: {tipResult.error}
-              </p>
-            )}
+            {tipResult?.error && <div style={{ color: theme.colors.accent.error, fontSize: 10, marginTop: 2 }}>ERROR: {tipResult.error}</div>}
           </>
         )}
       </div>

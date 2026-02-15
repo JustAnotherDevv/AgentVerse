@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { X, Clock, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Clock, ThumbsUp, ThumbsDown } from "lucide-react";
+import { theme } from "../../lib/theme";
 
 interface GovernancePanelProps {
   onClose: () => void;
@@ -69,20 +70,20 @@ export function GovernancePanel({ onClose }: GovernancePanelProps) {
 
   const getTimeRemaining = (endTime: number) => {
     const diff = endTime - Date.now();
-    if (diff <= 0) return "Ended";
+    if (diff <= 0) return "ENDED";
     const days = Math.floor(diff / (24 * 60 * 60 * 1000));
     const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-    if (days > 0) return `${days}d ${hours}h left`;
-    return `${hours}h left`;
+    if (days > 0) return `${days}d ${hours}h`;
+    return `${hours}h LEFT`;
   };
 
   const getProposalTypeColor = (type: string) => {
     switch (type) {
-      case "WorldUpgrade": return "#8b5cf6";
-      case "SkillCertification": return "#22c55e";
-      case "Resource分配": return "#f59e0b";
-      case "AgentElection": return "#3b82f6";
-      default: return "#6b7280";
+      case "WorldUpgrade": return theme.colors.accent.magic;
+      case "SkillCertification": return theme.colors.accent.tertiary;
+      case "Resource分配": return theme.colors.accent.warning;
+      case "AgentElection": return theme.colors.accent.mana;
+      default: return theme.colors.text.muted;
     }
   };
 
@@ -92,142 +93,165 @@ export function GovernancePanel({ onClose }: GovernancePanelProps) {
       top: "50%",
       left: "50%",
       transform: "translate(-50%, -50%)",
-      width: "550px",
+      width: "480px",
       maxHeight: "80vh",
-      background: "rgba(15, 23, 42, 0.98)",
-      borderRadius: "16px",
-      border: "1px solid rgba(139, 92, 246, 0.3)",
-      boxShadow: "0 16px 64px rgba(0, 0, 0, 0.5)",
-      zIndex: 400,
+      background: theme.colors.background.secondary,
+      border: `2px solid ${theme.colors.border.default}`,
+      zIndex: 2000,
       overflow: "hidden",
-      display: "flex",
-      flexDirection: "column",
+      fontFamily: theme.fonts.mono,
     }}>
       {/* Header */}
       <div style={{
-        background: "linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.2))",
-        padding: "16px 20px",
-        borderBottom: "1px solid rgba(139, 92, 246, 0.2)",
+        background: theme.colors.background.primary,
+        padding: theme.spacing.md,
+        borderBottom: `2px solid ${theme.colors.border.default}`,
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
       }}>
-        <h2 style={{ margin: 0, color: "white", fontSize: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
-          🗳️ Agent Governance
-        </h2>
-        <button onClick={onClose} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer" }}>
-          <X size={20} />
+        <div style={{ 
+          color: theme.colors.text.primary, 
+          fontWeight: 700, 
+          fontSize: theme.fontSize.base,
+          letterSpacing: '1px',
+        }}>
+          GOVERNANCE
+        </div>
+        <button onClick={onClose} style={{
+          background: "transparent",
+          border: `1px solid ${theme.colors.border.default}`,
+          color: theme.colors.text.primary,
+          cursor: "pointer",
+          padding: "2px 6px",
+          width: 24,
+          height: 24,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: theme.fonts.mono,
+        }}>
+          ×
         </button>
       </div>
 
       {/* Stats */}
-      <div style={{ padding: "12px 20px", borderBottom: "1px solid rgba(255,255,255,0.1)", display: "flex", gap: "16px" }}>
+      <div style={{ 
+        padding: theme.spacing.md, 
+        borderBottom: `2px solid ${theme.colors.border.default}`, 
+        display: "flex", 
+        gap: theme.spacing.lg,
+        background: theme.colors.background.tertiary,
+      }}>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: "24px", fontWeight: "bold", color: "#8b5cf6" }}>3</div>
-          <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>Registered Agents</div>
+          <div style={{ fontSize: "24px", fontWeight: "bold", color: theme.colors.accent.magic }}>3</div>
+          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.text.muted }}>REGISTERED</div>
         </div>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: "24px", fontWeight: "bold", color: "#22c55e" }}>{proposals.filter(p => !p.executed).length}</div>
-          <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>Active Proposals</div>
+          <div style={{ fontSize: "24px", fontWeight: "bold", color: theme.colors.accent.tertiary }}>{proposals.filter(p => !p.executed).length}</div>
+          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.text.muted }}>ACTIVE</div>
         </div>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: "24px", fontWeight: "bold", color: "#f59e0b" }}>500</div>
-          <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>Quorum Required</div>
+          <div style={{ fontSize: "24px", fontWeight: "bold", color: theme.colors.accent.primary }}>500</div>
+          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.text.muted }}>QUORUM</div>
         </div>
       </div>
 
       {/* Proposals */}
-      <div style={{ padding: "16px", overflowY: "auto", flex: 1 }}>
+      <div style={{ padding: theme.spacing.md, overflowY: "auto", flex: 1, maxHeight: "55vh" }}>
         {proposals.map(proposal => (
           <div key={proposal.id} style={{
-            padding: "16px",
-            background: "rgba(255,255,255,0.03)",
-            borderRadius: "12px",
-            border: "1px solid rgba(255,255,255,0.05)",
-            marginBottom: "12px",
+            padding: theme.spacing.md,
+            background: theme.colors.background.primary,
+            border: `1px solid ${theme.colors.border.subtle}`,
+            marginBottom: theme.spacing.md,
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-              <div>
-                <h3 style={{ margin: 0, color: "white", fontSize: "16px" }}>{proposal.title}</h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: theme.spacing.sm }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: theme.spacing.sm, marginBottom: theme.spacing.xs }}>
+                  <span style={{ color: theme.colors.text.primary, fontWeight: 700, fontSize: theme.fontSize.xs }}>{proposal.title}</span>
+                </div>
                 <span style={{
                   fontSize: "10px",
-                  padding: "2px 6px",
-                  borderRadius: "4px",
+                  padding: `2px ${theme.spacing.xs}`,
                   background: getProposalTypeColor(proposal.proposalType),
-                  color: "white",
+                  color: theme.colors.text.inverse,
+                  fontWeight: 700,
                 }}>
                   {proposal.proposalType}
                 </span>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "4px", color: theme.colors.text.muted, fontSize: theme.fontSize.xs }}>
                 <Clock size={12} />
                 {getTimeRemaining(proposal.endTime)}
               </div>
             </div>
             
-            <p style={{ margin: "0 0 12px 0", color: "rgba(255,255,255,0.7)", fontSize: "13px" }}>
+            <p style={{ margin: `0 0 ${theme.spacing.sm} 0`, color: theme.colors.text.tertiary, fontSize: theme.fontSize.xs }}>
               {proposal.description}
             </p>
             
             {/* Vote bars */}
-            <div style={{ marginBottom: "12px" }}>
-              <div style={{ display: "flex", height: "6px", borderRadius: "3px", overflow: "hidden", background: "rgba(255,255,255,0.1)" }}>
-                <div style={{ width: `${(proposal.votesFor / (proposal.votesFor + proposal.votesAgainst || 1)) * 100}%`, background: "#22c55e" }} />
-                <div style={{ width: `${(proposal.votesAgainst / (proposal.votesFor + proposal.votesAgainst || 1)) * 100}%`, background: "#ef4444" }} />
+            <div style={{ marginBottom: theme.spacing.sm }}>
+              <div style={{ display: "flex", height: "6px", borderRadius: "2px", overflow: "hidden", background: theme.colors.background.tertiary }}>
+                <div style={{ width: `${(proposal.votesFor / (proposal.votesFor + proposal.votesAgainst || 1)) * 100}%`, background: theme.colors.accent.tertiary }} />
+                <div style={{ width: `${(proposal.votesAgainst / (proposal.votesFor + proposal.votesAgainst || 1)) * 100}%`, background: theme.colors.accent.health }} />
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", fontSize: "11px" }}>
-                <span style={{ color: "#22c55e" }}>✓ {proposal.votesFor} votes</span>
-                <span style={{ color: "#ef4444" }}>{proposal.votesAgainst} against</span>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", fontSize: theme.fontSize.xs }}>
+                <span style={{ color: theme.colors.accent.tertiary }}>✓ {proposal.votesFor}</span>
+                <span style={{ color: theme.colors.accent.health }}>{proposal.votesAgainst} ✗</span>
               </div>
             </div>
 
             {/* Vote buttons */}
             {!voted.has(proposal.id) && !proposal.executed && (
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ display: "flex", gap: theme.spacing.sm }}>
                 <button
                   onClick={() => handleVote(proposal.id, true)}
                   style={{
                     flex: 1,
-                    padding: "8px",
-                    background: "rgba(34, 197, 94, 0.2)",
-                    border: "1px solid #22c55e",
-                    borderRadius: "6px",
-                    color: "#22c55e",
+                    padding: theme.spacing.sm,
+                    background: "transparent",
+                    border: `1px solid ${theme.colors.accent.tertiary}`,
+                    color: theme.colors.accent.tertiary,
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: "4px",
-                    fontSize: "12px",
+                    gap: theme.spacing.xs,
+                    fontSize: theme.fontSize.xs,
+                    fontWeight: 700,
+                    fontFamily: theme.fonts.mono,
                   }}
                 >
-                  <ThumbsUp size={14} /> Vote For
+                  <ThumbsUp size={12} /> VOTE_FOR
                 </button>
                 <button
                   onClick={() => handleVote(proposal.id, false)}
                   style={{
                     flex: 1,
-                    padding: "8px",
-                    background: "rgba(239, 68, 68, 0.2)",
-                    border: "1px solid #ef4444",
-                    borderRadius: "6px",
-                    color: "#ef4444",
+                    padding: theme.spacing.sm,
+                    background: "transparent",
+                    border: `1px solid ${theme.colors.accent.health}`,
+                    color: theme.colors.accent.health,
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: "4px",
-                    fontSize: "12px",
+                    gap: theme.spacing.xs,
+                    fontSize: theme.fontSize.xs,
+                    fontWeight: 700,
+                    fontFamily: theme.fonts.mono,
                   }}
                 >
-                  <ThumbsDown size={14} /> Vote Against
+                  <ThumbsDown size={12} /> VOTE_AGAINST
                 </button>
               </div>
             )}
             
             {voted.has(proposal.id) && (
-              <div style={{ textAlign: "center", color: "#8b5cf6", fontSize: "12px" }}>
-                ✓ You voted!
+              <div style={{ textAlign: "center", color: theme.colors.accent.primary, fontSize: theme.fontSize.xs, fontWeight: 700 }}>
+                ✓ VOTE RECORDED
               </div>
             )}
           </div>
@@ -235,8 +259,15 @@ export function GovernancePanel({ onClose }: GovernancePanelProps) {
       </div>
 
       {/* Info footer */}
-      <div style={{ padding: "12px 16px", borderTop: "1px solid rgba(255,255,255,0.1)", fontSize: "11px", color: "rgba(255,255,255,0.5)", textAlign: "center" }}>
-        Proposals require 1000+ reputation to create • 500 votes to pass • Agents vote with reputation weight
+      <div style={{ 
+        padding: theme.spacing.sm, 
+        borderTop: `2px solid ${theme.colors.border.default}`, 
+        fontSize: theme.fontSize.xs, 
+        color: theme.colors.text.muted, 
+        textAlign: "center",
+        background: theme.colors.background.primary,
+      }}>
+        1000+ REP TO CREATE • 500 VOTES TO PASS • REPUTATION WEIGHTED
       </div>
     </div>
   );

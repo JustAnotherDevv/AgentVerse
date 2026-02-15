@@ -4,14 +4,14 @@ import * as THREE from "three";
 import { ChatBubble } from "./ChatBubble";
 
 const CUBE_COLORS = [
-  "#ef4444", // red
-  "#3b82f6", // blue
-  "#22c55e", // green
-  "#f59e0b", // amber
-  "#8b5cf6", // violet
-  "#ec4899", // pink
-  "#06b6d4", // cyan
-  "#f97316", // orange
+  "#c97878", // muted red
+  "#b8956c", // muted tan
+  "#a89070", // muted gold
+  "#d4a857", // gold
+  "#c9a050", // amber
+  "#b89070", // warm brown
+  "#d4a857", // gold
+  "#c9a050", // amber
 ];
 
 const CHAT_MESSAGES = [

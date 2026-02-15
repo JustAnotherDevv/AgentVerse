@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { theme } from "../../lib/theme";
 import type { WorldMessage } from "../../hooks/useAgentSystem";
 
 interface WorldChatProps {
@@ -16,7 +17,7 @@ export function WorldChat({ messages }: WorldChatProps) {
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
   return (
@@ -25,136 +26,75 @@ export function WorldChat({ messages }: WorldChatProps) {
       right: 0,
       top: 0,
       bottom: 0,
-      width: '320px',
-      background: 'rgba(15, 23, 42, 0.95)',
-      borderLeft: '1px solid rgba(139, 92, 246, 0.3)',
+      width: '260px',
+      background: theme.colors.background.secondary,
+      borderLeft: `2px solid ${theme.colors.border.default}`,
       display: 'flex',
       flexDirection: 'column',
-      zIndex: 50,
-      fontFamily: 'Arial, sans-serif',
+      zIndex: 2000,
+      fontFamily: theme.fonts.mono,
     }}>
+      {/* Header */}
       <div style={{
-        padding: '16px',
-        borderBottom: '1px solid rgba(139, 92, 246, 0.3)',
+        padding: `${theme.spacing.sm} ${theme.spacing.xs}`,
+        borderBottom: `2px solid ${theme.colors.border.default}`,
+        background: theme.colors.background.primary,
         display: 'flex',
         alignItems: 'center',
-        gap: '8px',
+        gap: theme.spacing.xs,
       }}>
-        <span style={{ fontSize: '18px' }}>💬</span>
+        <div style={{ width: 8, height: 8, background: theme.colors.accent.primary }} />
         <span style={{ 
-          color: '#e2e8f0', 
-          fontWeight: 'bold', 
-          fontSize: '14px',
-          letterSpacing: '0.5px'
+          color: theme.colors.text.primary, 
+          fontWeight: 700, 
+          fontSize: theme.fontSize.xs,
+          letterSpacing: '2px',
+          textTransform: 'uppercase',
         }}>
-          WORLD CHAT
+          WORLD FEED
         </span>
-        <span style={{
-          marginLeft: 'auto',
-          background: '#22c55e',
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-        }} />
+        <span style={{ marginLeft: 'auto', color: theme.colors.text.muted, fontSize: theme.fontSize.xs }}>
+          {messages.length}
+        </span>
       </div>
 
-      <div 
-        ref={containerRef}
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '12px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-        }}
-      >
+      {/* Messages */}
+      <div ref={containerRef} style={{ flex: 1, overflowY: 'auto', padding: theme.spacing.xs, display: 'flex', flexDirection: 'column', gap: theme.spacing.xs }}>
         {messages.length === 0 && (
-          <div style={{
-            color: '#64748b',
-            textAlign: 'center',
-            padding: '20px',
-            fontSize: '13px',
-          }}>
-            No messages yet...
+          <div style={{ color: theme.colors.text.muted, textAlign: 'center', padding: theme.spacing.md, fontSize: theme.fontSize.xs, border: `1px dashed ${theme.colors.border.subtle}`, margin: theme.spacing.xs }}>
+            <span style={{ animation: 'blink 1s infinite' }}>▌</span> WAITING FOR DATA...
           </div>
         )}
         
         {messages.map((msg) => {
           if (msg.type === 'world_event') {
             return (
-              <div key={msg.id} style={{
-                background: 'rgba(100, 116, 139, 0.2)',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                fontSize: '12px',
-                color: '#94a3b8',
-                textAlign: 'center',
-                fontStyle: 'italic',
-              }}>
+              <div key={msg.id} style={{ background: theme.colors.background.tertiary, border: `1px solid ${theme.colors.border.subtle}`, padding: `${theme.spacing.xs} ${theme.spacing.sm}`, fontSize: theme.fontSize.xs, color: theme.colors.text.tertiary }}>
                 {msg.content}
               </div>
             );
           }
 
           return (
-            <div 
-              key={msg.id}
-              style={{
-                background: 'rgba(30, 41, 59, 0.8)',
-                borderRadius: '10px',
-                padding: '10px 12px',
-                borderLeft: msg.type === 'system' 
-                  ? '3px solid #f59e0b' 
-                  : '3px solid #8b5cf6',
-              }}
-            >
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                marginBottom: '4px',
-              }}>
-                {msg.avatar && (
-                  <span style={{ fontSize: '14px' }}>{msg.avatar.emoji}</span>
-                )}
-                <span style={{
-                  color: '#a5b4fc',
-                  fontWeight: 'bold',
-                  fontSize: '13px',
-                }}>
-                  {msg.agentName}
-                </span>
-                <span style={{
-                  color: '#475569',
-                  fontSize: '11px',
-                  marginLeft: 'auto',
-                }}>
-                  {formatTime(msg.timestamp)}
-                </span>
+            <div key={msg.id} style={{ background: theme.colors.background.tertiary, border: `1px solid ${theme.colors.border.subtle}`, padding: theme.spacing.xs }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.xs, marginBottom: '2px', fontSize: theme.fontSize.xs }}>
+                {msg.avatar && <span style={{ fontSize: '11px' }}>{msg.avatar.emoji}</span>}
+                <span style={{ color: theme.colors.accent.primary, fontWeight: 700 }}>{msg.agentName}</span>
+                <span style={{ color: theme.colors.text.muted, marginLeft: 'auto', fontSize: 10 }}>{formatTime(msg.timestamp)}</span>
               </div>
-              <div style={{
-                color: '#e2e8f0',
-                fontSize: '13px',
-                lineHeight: '1.4',
-                wordBreak: 'break-word',
-              }}>
-                {msg.content}
-              </div>
+              <div style={{ color: theme.colors.text.secondary, fontSize: theme.fontSize.xs, lineHeight: 1.4 }}>{msg.content}</div>
             </div>
           );
         })}
       </div>
 
-      <div style={{
-        padding: '12px',
-        borderTop: '1px solid rgba(139, 92, 246, 0.3)',
-        fontSize: '11px',
-        color: '#64748b',
-        textAlign: 'center',
-      }}>
-        Press Enter to send
+      {/* Footer */}
+      <div style={{ padding: theme.spacing.xs, borderTop: `2px solid ${theme.colors.border.default}`, fontSize: theme.fontSize.xs, color: theme.colors.text.muted, textAlign: 'center', background: theme.colors.background.primary }}>
+        ▸ PRESS ENTER TO TRANSMIT
       </div>
+      <style>{`
+        @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+      `}</style>
     </div>
   );
 }
